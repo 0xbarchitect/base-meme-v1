@@ -31,7 +31,7 @@ class BlockWatcher(metaclass=Singleton):
             subscription_id = await w3Async.eth.subscribe("newHeads")
 
             async for response in w3Async.ws.process_subscriptions():
-                #print(f"new block {response}\n")
+                print(f"new block {response}\n")
                 
                 block_number = Web3.to_int(hexstr=response['result']['number'])
                 block_timestamp = Web3.to_int(hexstr=response['result']['timestamp'])
@@ -41,20 +41,20 @@ class BlockWatcher(metaclass=Singleton):
 
                 print(f"block number {block_number} timestamp {block_timestamp}")
 
-                amount0Diff, amount1Diff, reserve0, reserve1 = await self.filter_log_in_block(pair_contract_async, block_number)
+                # amount0Diff, amount1Diff, reserve0, reserve1 = await self.filter_log_in_block(pair_contract_async, block_number)
 
-                # queue block data
-                self.queue.put(BlockData(
-                    block_number,
-                    block_timestamp,
-                    base_fee,
-                    gas_used,
-                    gas_limit,
-                    amount0Diff,
-                    amount1Diff,
-                    reserve0,
-                    reserve1
-                ))
+                # # queue block data
+                # self.queue.put(BlockData(
+                #     block_number,
+                #     block_timestamp,
+                #     base_fee,
+                #     gas_used,
+                #     gas_limit,
+                #     amount0Diff,
+                #     amount1Diff,
+                #     reserve0,
+                #     reserve1
+                # ))
 
     async def filter_log_in_block(self, contract, block_number):
         #block_number = 34513052 # TODO
