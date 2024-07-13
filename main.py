@@ -20,17 +20,22 @@ from helpers import Reporter
 from data import ExecutionData, ReportData, ReportDataType
 
 # load config
-JOEPAIRV1_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/JoePairV1.abi.json")
-JOE_ROUTER_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/JoeRouterV2.abi.json")
-LBROUTER_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/LBRouter.abi.json")
-AVEX_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/AVEX.abi.json")
-WAVAX_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/WAVAX.abi.json")
+ERC20_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/ERC20.abi.json")
+PAIR_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniV2Pair.abi.json")
+WETH_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/WETH.abi.json")
+ROUTER_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniRouter.abi.json")
+FACTORY_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniV2Factory.abi.json")
 
 AVAX_AMOUNT_THRESHOLD = 10**-8
 SLIPPAGE_PERCENTAGE = 5
 
 def watching_process(block_sender):
-    block_watcher = BlockWatcher(os.environ.get('WSS_URL'), block_sender, os.environ.get('PAIR_ADDRESS'), JOEPAIRV1_ABI)
+    block_watcher = BlockWatcher(os.environ.get('WSS_URL'), 
+                                 block_sender, 
+                                 os.environ.get('FACTORY_ADDRESS'), 
+                                 FACTORY_ABI,
+                                 os.environ.get('WETH_ADDRESS'),
+                                 )
     asyncio.run(block_watcher.run())
 
 async def strategy(block_receiver, execution_sender, report_sender):
@@ -38,34 +43,6 @@ async def strategy(block_receiver, execution_sender, report_sender):
         block_data = await block_receiver.coro_get()
 
         print(f"strategy received block {block_data}")
-        if block_data.amount1Diff >= AVAX_AMOUNT_THRESHOLD:
-            print(f"qualify to trigger counter trading")
-            # simulate
-            amountTokenIn = calculate_amount_in(block_data.reserve0, block_data.reserve1, block_data.amount1Diff * Decimal(0.8))
-            print(f"amount avex in {amountTokenIn}")
-
-            amount_avex_out_simulated = simulate(block_data, amountTokenIn)
-
-            if amount_avex_out_simulated > 0:
-                print(f"promising profit {amount_avex_out_simulated:5f}, execute counter trade...")
-
-                # queue execution data
-                execution_sender.put(ExecutionData(
-                    block_data.block_number,
-                    block_data.block_timestamp,
-                    amountTokenIn,
-                    amount_avex_out_simulated * Decimal(100 - SLIPPAGE_PERCENTAGE) / Decimal(100),
-                ))
-
-                # send report
-                report_sender.put(ReportData(
-                    type = ReportDataType.BLOCK,
-                    data = block_data
-                ))
-            else:
-                print(f"bad opportunity, ignore...")
-        elif block_data.amount1Diff > 0:
-            print(f"amount {block_data.amount1Diff} too small")
 
 @timer_decorator
 def simulate(block_data, amount0In) -> int:
@@ -108,12 +85,10 @@ async def main():
     p1.start()
 
     # EXECUTION process
-    p2 = Process(target=execution_process, args=(execution_broker, report_broker,))
-    p2.start()
+    #p2 = Process(target=execution_process, args=(execution_broker, report_broker,))
+    #p2.start()
 
     # REPORTING process
-    p3 = Process(target=report_process, args=(report_broker,))
-    p3.start()
 
     await strategy(watching_broker, execution_broker, report_broker)
 
