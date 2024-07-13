@@ -1,22 +1,27 @@
 import os
 
+class Pair:
+    def __init__(self, token0, token1, address) -> None:
+        self.token0 = token0
+        self.token1 = token1
+        self.address = address
+
+    def  __str__(self) -> str:
+        return f"{self.address}"
+
 class BlockData:
-    def __init__(self, block_number, block_timestamp, base_fee, gas_used, gas_limit, amount0Diff, amount1Diff, reserve0, reserve1) -> None:
+    def __init__(self, block_number, block_timestamp, base_fee, gas_used, gas_limit, pairs) -> None:
         self.block_number = block_number
         self.block_timestamp = block_timestamp
         self.base_fee = base_fee
         self.gas_used = gas_used
         self.gas_limit = gas_limit
-        self.amount0Diff = amount0Diff
-        self.amount1Diff = amount1Diff
-        self.reserve0 = reserve0
-        self.reserve1 = reserve1
+        self.pairs = pairs
 
     def __str__(self) -> str:
         return f"""
         Block #{self.block_number} timestamp {self.block_timestamp} baseFee {self.base_fee} gasUsed {self.gas_used} gasLimit {self.gas_limit}
-        Amount0Diff {self.amount0Diff} Amount1Diff {self.amount1Diff}
-        Reserve0 {self.reserve0} Reserve1 {self.reserve1}
+        Pairs created {len(self.pairs)}
         """
 
 class ExecutionData:
