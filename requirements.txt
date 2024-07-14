@@ -25,3 +25,4 @@ Markdown
 django-filter
 redis
 coverage
+uniswap-universal-router-decoder
