@@ -134,17 +134,27 @@ class Simulator:
     @timer_decorator
     def inspect_http(self, token0, token1, pair, amount) -> None:
         try:
-            pair_contract = self.w3.eth.contract(address=pair,abi=self.pair_abi)
-            result = self.weth_contract.functions.balanceOf(self.signer).call(
-                state_override={
-                    self.weth: {
-                        'stateDiff': {
-                            '0xf0a2fd871c1ccff2b6103f26750c36cdd8b9b18309aa61141e14477bacf69014': (hex(1000000))
-                        }
+            #pair_contract = self.w3.eth.contract(address=pair,abi=self.pair_abi)
+            # result = self.weth_contract.functions.balanceOf(self.signer).call(
+            #     state_override={
+            #         self.weth: {
+            #             'stateDiff': {
+            #                 '0xf0a2fd871c1ccff2b6103f26750c36cdd8b9b18309aa61141e14477bacf69014': (hex(1000000))
+            #             }
+            #         }
+            #     }
+            # )
+
+            state_override = {
+                self.weth: {
+                    'stateDiff': {
+                        '0xf0a2fd871c1ccff2b6103f26750c36cdd8b9b18309aa61141e14477bacf69014': (hex(1000000))
                     }
                 }
-            )
-            print(f"result {result}")
+            }
+            
+            result = self.w3.eth.call({'from':self.signer,'to':self.weth,'data':'0x70a08231000000000000000000000000C9b0D9125bD2C029F812776C043ECD05Ad4610dd'},'latest',state_override)
+            print(f"result {Web3.to_hex(result)}")
         except Exception as e:
             print(f"simulate error {e}")
 
