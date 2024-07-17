@@ -23,7 +23,7 @@ contract InspectBot is AbstractBot {
 
   function inspect() external onlyOwner payable returns (uint256 valueIn, uint256 amountReceived) {
     // long step : swap native for token
-    uint256 amountBefore = address(this).balance;
+    //uint256 amountBefore = address(this).balance;
 
     uint256 deadline = block.timestamp + DEADLINE_BLOCK_DELAY;
     uint8 tokenId = IUniswapV2Pair(_getPair()).token0() == _erc20 ? 0 : 1;
