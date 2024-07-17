@@ -11,7 +11,7 @@ import "./interfaces/IERC20.sol";
 
 abstract contract AbstractBot is Ownable {
   using SafeMath for uint256;
-  uint16 constant DEADLINE_BLOCK_DELAY = 100;
+  uint16 internal constant DEADLINE_BLOCK_DELAY = 100;
 
   address public _router;
   address public _factory;
@@ -31,7 +31,7 @@ abstract contract AbstractBot is Ownable {
     return IUniswapV2Factory(_factory).getPair(_erc20, _weth);
   }
 
-  function _swapNativeForToken(uint256 amountETHIn, uint256 amountTokenOut, uint256 deadline) internal {
+  function _swapNativeForToken(uint256 amountETHIn, uint256 amountTokenOut, address to, uint256 deadline) internal {
     address[] memory path = new address[](2);
     path[0] = _weth;
     path[1] = _erc20;
@@ -39,12 +39,12 @@ abstract contract AbstractBot is Ownable {
     IUniswapV2Router02(_router).swapExactETHForTokens{value: amountETHIn}(
       amountTokenOut,
       path,
-      address(this),
+      to,
       deadline
     );
   }
 
-  function _swapTokenForNative(uint256 amountTokenIn, uint256 amountETHOutMin, uint256 deadline) internal {
+  function _swapTokenForNative(uint256 amountTokenIn, uint256 amountETHOutMin, address payable to, uint256 deadline) internal {
 
     address[] memory path = new address[](2);
     path[0] = _erc20;
@@ -54,7 +54,7 @@ abstract contract AbstractBot is Ownable {
       amountTokenIn,
       amountETHOutMin,
       path,
-      payable(owner()),
+      to,
       deadline
     );
   }

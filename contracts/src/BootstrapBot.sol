@@ -13,7 +13,6 @@ import "./AbstractBot.sol";
 
 contract BootstrapBot is AbstractBot {
   using SafeMath for uint256;
-  uint16 constant DEADLINE_BLOCK_DELAY = 100;
 
   constructor(address router, address factory, address erc20, address weth) 
     AbstractBot(router, factory, erc20, weth){}
