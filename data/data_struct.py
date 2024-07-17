@@ -74,3 +74,13 @@ class W3Account:
         self.w3_account = w3_account
         self.private_key = private_key
         self.nonce = nonce
+
+class SimulationResult:
+    def __init__(self, token, amount_in, amount_out, slippage) -> None:
+        self.token = token
+        self.amount_in = amount_in
+        self.amount_out = amount_out
+        self.slippage = slippage
+
+    def __str__(self) -> str:
+        return f"Simulation result {self.token} slippage {self.slippage} amount in {self.amount_in} amount out {self.amount_out}"

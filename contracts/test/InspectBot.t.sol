@@ -41,19 +41,16 @@ contract InspectBotTest is Test, HelperContract {
 
   function setUp() public {
     token = new ERC20Token();
-    bootstrapBot = new BootstrapBot(ROUTERV2, FACTORYV2, address(token), WETH);
-    inspectBot = new InspectBot(ROUTERV2, FACTORYV2, address(token), WETH);
+    bootstrapBot = new BootstrapBot(ROUTERV2, FACTORYV2, WETH);
+    inspectBot = new InspectBot(ROUTERV2, FACTORYV2, WETH);
 
     token.transfer(address(bootstrapBot), TOTAL_SUPPLY);
     bootstrapBot.approveToken(ROUTERV2, address(token), TOTAL_SUPPLY);
-    bootstrapBot.addLiquidity{value: INITIAL_AVAX_RESERVE}(TOTAL_SUPPLY);
+    bootstrapBot.addLiquidity{value: INITIAL_AVAX_RESERVE}(address(token), TOTAL_SUPPLY);
   }
 
-  function test_inspect() public {
-    //bool sent = payable(address(inspectBot)).send(INSPECT_VALUE);
-    //require(sent, "Sent value failed");
-    
-    (uint256 amountIn, uint256 amountReceived) = inspectBot.inspect{value: INSPECT_VALUE}();
+  function test_inspect() public {    
+    (uint256 amountIn, uint256 amountReceived) = inspectBot.inspect{value: INSPECT_VALUE}(address(token));
 
     assertEq(amountIn, INSPECT_VALUE);
     assertGt(amountReceived, 0);

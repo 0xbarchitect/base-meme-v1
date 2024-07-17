@@ -22,13 +22,13 @@ contract BootstrapBotTest is Test, HelperContract {
 
   function setUp() public {
     token = new ERC20Token();
-    bot = new BootstrapBot(ROUTERV2, FACTORYV2, address(token), WETH);
+    bot = new BootstrapBot(ROUTERV2, FACTORYV2, WETH);
   }
 
   function test_addLiquidity() public {
     token.transfer(address(bot), TOTAL_SUPPLY);
     bot.approveToken(ROUTERV2, address(token), TOTAL_SUPPLY);
-    bot.addLiquidity{value: INITIAL_AVAX_RESERVE}(TOTAL_SUPPLY);
+    bot.addLiquidity{value: INITIAL_AVAX_RESERVE}(address(token), TOTAL_SUPPLY);
 
     (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(_getPair()).getReserves();
 

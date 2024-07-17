@@ -14,14 +14,14 @@ import "./AbstractBot.sol";
 contract BootstrapBot is AbstractBot {
   using SafeMath for uint256;
 
-  constructor(address router, address factory, address erc20, address weth) 
-    AbstractBot(router, factory, erc20, weth){}
+  constructor(address router, address factory, address weth) 
+    AbstractBot(router, factory, weth){}
 
   function approveToken(address router, address token, uint256 amount) external onlyOwner {
     IERC20(token).approve(router, amount);
   }
 
-  function addLiquidity(uint256 amountTokenDesired) external onlyOwner payable {
+  function addLiquidity(address erc20, uint256 amountTokenDesired) external onlyOwner payable {
     require(msg.value >0, "Message value MUST be greater than zero");
 
     // add liquidity (thus create pair inherently)
@@ -29,7 +29,7 @@ contract BootstrapBot is AbstractBot {
     uint256 amountETHMin = msg.value - msg.value.div(10_000).mul(5);
 
     IUniswapV2Router02(_router).addLiquidityETH{value: msg.value}(
-      _erc20,
+      erc20,
       amountTokenDesired,
       amountTokenMin,
       amountETHMin,

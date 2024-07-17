@@ -16,25 +16,23 @@ abstract contract AbstractBot is Ownable {
   address public _router;
   address public _factory;
 
-  address public _erc20;
+  //address public _erc20;
   address public _weth;
 
-  constructor(address router, address factory, address erc20, address weth) {
+  constructor(address router, address factory, address weth) {
     _router = router;
     _factory = factory;
-
-    _erc20 = erc20;
     _weth = weth;
   }
 
-  function _getPair() internal view returns (address pair) {
-    return IUniswapV2Factory(_factory).getPair(_erc20, _weth);
+  function _getPair(address erc20) internal view returns (address pair) {
+    return IUniswapV2Factory(_factory).getPair(erc20, _weth);
   }
 
-  function _swapNativeForToken(uint256 amountETHIn, uint256 amountTokenOut, address to, uint256 deadline) internal {
+  function _swapNativeForToken(address erc20, uint256 amountETHIn, uint256 amountTokenOut, address to, uint256 deadline) internal {
     address[] memory path = new address[](2);
     path[0] = _weth;
-    path[1] = _erc20;
+    path[1] = erc20;
 
     IUniswapV2Router02(_router).swapExactETHForTokens{value: amountETHIn}(
       amountTokenOut,
@@ -44,10 +42,10 @@ abstract contract AbstractBot is Ownable {
     );
   }
 
-  function _swapTokenForNative(uint256 amountTokenIn, uint256 amountETHOutMin, address payable to, uint256 deadline) internal {
+  function _swapTokenForNative(address erc20, uint256 amountTokenIn, uint256 amountETHOutMin, address payable to, uint256 deadline) internal {
 
     address[] memory path = new address[](2);
-    path[0] = _erc20;
+    path[0] = erc20;
     path[1] = _weth;    
 
     IUniswapV2Router02(_router).swapExactTokensForETH(
