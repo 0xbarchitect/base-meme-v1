@@ -152,8 +152,13 @@ class Simulator:
                     }
                 }
             }
+
+            tx = self.weth_contract.functions.balanceOf(self.signer).build_transaction()
+
+            #result = self.w3.eth.call({'from':self.signer,'to':self.weth,'data':'0x70a08231000000000000000000000000C9b0D9125bD2C029F812776C043ECD05Ad4610dd'},'latest',state_override)
             
-            result = self.w3.eth.call({'from':self.signer,'to':self.weth,'data':'0x70a08231000000000000000000000000C9b0D9125bD2C029F812776C043ECD05Ad4610dd'},'latest',state_override)
+            result = self.w3.eth.call(tx,'latest',state_override)
+            
             print(f"result {Web3.to_hex(result)}")
         except Exception as e:
             print(f"simulate error {e}")
