@@ -151,5 +151,6 @@ if __name__ == '__main__':
                             BlockData(0,0,25000000000,45059,15000000,[]),
                             False)
     
-    result=simulator.inspect_token('0xB1a03EdA10342529bBF8EB700a06C60441fEf25d', 0.001)
-    logging.info(f"{result}")
+    #result=simulator.inspect_token('0xB1a03EdA10342529bBF8EB700a06C60441fEf25d', 0.001)
+    result=simulator.inspect_token('0xccb0f8DfB77C86a393165E2c35C79fff2940Cdc0', 0.001)
+    logging.info(f"Simulation result {result}")
