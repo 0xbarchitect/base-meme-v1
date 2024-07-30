@@ -4,73 +4,56 @@ pragma solidity ^0.8.13;
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-import "./interfaces/IJoeRouter02.sol";
-import "./interfaces/IJoeRouter01.sol";
-import "./interfaces-v2/ILBRouter.sol";
-import "./interfaces/IJoePair.sol";
+import "./interfaces/IUniswapV2Router02.sol";
+import "./interfaces/IUniswapV2Factory.sol";
+import "./interfaces/IUniswapV2Pair.sol";
+import "./interfaces/IERC20.sol";
 
 abstract contract AbstractBot is Ownable {
   using SafeMath for uint256;
-  uint16 constant DEADLINE_BLOCK_DELAY = 100;
+  uint16 internal constant DEADLINE_BLOCK_DELAY = 100;
 
-  address public _joeRouterV2;
-  address public _lbRouter;
-  address public _joeFactory;
+  address public _router;
+  address public _factory;
 
-  address public _avex;
-  address public _wavax;
+  //address public _erc20;
+  address public _weth;
 
-  constructor(address joeRouter, address lbRouter, address joeFactory, address avex, address wavax) {
-    _joeRouterV2 = joeRouter;
-    _lbRouter = lbRouter;
-    _joeFactory = joeFactory;
-
-    _avex = avex;
-    _wavax = wavax;
+  constructor(address router, address factory, address weth) {
+    _router = router;
+    _factory = factory;
+    _weth = weth;
   }
 
-  function _getPair() internal view returns (address pair) {
-    return IJoeFactory(_joeFactory).getPair(_avex, _wavax);
+  function _getPair(address erc20) internal view returns (address pair) {
+    return IUniswapV2Factory(_factory).getPair(erc20, _weth);
   }
 
-  function _swapNativeForToken(uint256 amountAVAXIn, uint256 amountTokenOut) internal {
-    uint256[] memory steps = new uint256[](1);
-    steps[0] = 0;
-    ILBRouter.Version[] memory versions = new ILBRouter.Version[](1);
-    versions[0] = ILBRouter.Version.V1;
+  function _swapNativeForToken(address erc20, uint256 amountETHIn, uint256 amountTokenOut, address to, uint256 deadline) internal {
+    address[] memory path = new address[](2);
+    path[0] = _weth;
+    path[1] = erc20;
 
-    IERC20[] memory tokens = new IERC20[](2);
-    tokens[0] = IERC20(_wavax);
-    tokens[1] = IERC20(_avex);
-
-    ILBRouter.Path memory _path = ILBRouter.Path(steps, versions, tokens);
-
-    ILBRouter(_lbRouter).swapExactNATIVEForTokens{value: amountAVAXIn}(
+    IUniswapV2Router02(_router).swapExactETHForTokens{value: amountETHIn}(
       amountTokenOut,
-      _path,
-      address(this),
-      block.timestamp + DEADLINE_BLOCK_DELAY
+      path,
+      to,
+      deadline
     );
   }
 
-  function _swapTokenForNative(uint256 amountTokenIn, uint256 amountAVAXOut) internal {
-    uint256[] memory steps = new uint256[](1);
-    steps[0] = 0;
-    ILBRouter.Version[] memory versions = new ILBRouter.Version[](1);
-    versions[0] = ILBRouter.Version.V1;
+  function _swapTokenForNative(address erc20, uint256 amountTokenIn, uint256 amountETHOutMin, address payable to, uint256 deadline) internal {
 
-    IERC20[] memory tokens = new IERC20[](2);
-    tokens[0] = IERC20(_avex);
-    tokens[1] = IERC20(_wavax);    
+    address[] memory path = new address[](2);
+    path[0] = erc20;
+    path[1] = _weth;    
 
-    ILBRouter.Path memory _path = ILBRouter.Path(steps, versions, tokens);
-
-    ILBRouter(_lbRouter).swapExactTokensForNATIVE(
+    IUniswapV2Router02(_router).swapExactTokensForETH(
       amountTokenIn,
-      amountAVAXOut,
-      _path,
-      payable(owner()),
-      block.timestamp + DEADLINE_BLOCK_DELAY
+      amountETHOutMin,
+      path,
+      to,
+      deadline
     );
   }
 

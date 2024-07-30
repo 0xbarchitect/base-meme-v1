@@ -1,4 +1,5 @@
 import os
+import logging
 import functools
 import time
 
@@ -12,7 +13,7 @@ def rate_limiter(sleep_time):
           value = func(*args, **kwargs)
           end_time = time.perf_counter()
           run_time = end_time - start_time
-          print(f"Finished {func.__name__}() in {run_time:.4f} secs")
+          logging.info(f"Finished {func.__name__}() in {run_time:.4f} secs")
 
           return value
       return wrapper
@@ -24,7 +25,7 @@ def timer_decorator(func):
         start_time = time.perf_counter()
         result = func(*args, **kwargs)
         run_time = time.perf_counter() - start_time
-        print(f"Finished {func.__name__}() in {run_time:.4f} secs")
+        logging.info(f"Finished {func.__name__}() in {run_time:.4f} secs")
         return result
 
     return wrapper_function
@@ -34,7 +35,7 @@ def async_timer_decorator(func):
         start_time = time.perf_counter()
         result = await func(*args, **kwargs)
         run_time = time.perf_counter() - start_time
-        print(f"Finished {func.__name__}() in {run_time:.4f} secs")
+        logging.info(f"Finished {func.__name__}() in {run_time:.4f} secs")
         return result
     
     return wrapper
