@@ -110,5 +110,5 @@ if __name__ == '__main__':
                             INSPECTOR_ABI,
                             BlockData(0,0,25000000000,45059,15000000,[]),)
     
-    result=simulator.inspect_token('0xe1D2f11C0a186A3f332967b5135FFC9a4568B15d', 0.001)
+    result=simulator.inspect_token('0xe1D2f11C0a186A3f332967b5135FFC9a4568B15d', 0.0003)
     logging.info(f"Simulation result {result}")

@@ -5,6 +5,7 @@ import time
 from decimal import Decimal
 
 from concurrent.futures import ThreadPoolExecutor
+from web3 import Web3
 
 import sys # for testing
 sys.path.append('..')
@@ -80,7 +81,7 @@ class BuySellExecutor(BaseExecutor):
             logging.error(f"{amount_in} catch exception {e}")
 
     async def run(self):
-        logging.info(f"listen for execution...")
+        logging.info(f"EXECUTOR listen for order...")
         executor = ThreadPoolExecutor(max_workers=len(self.accounts))
         counter = 0
         while True:
@@ -128,7 +129,6 @@ if __name__ == "__main__":
         router_abi=ROUTER_ABI,
         erc20_abi=ERC20_ABI,
     )
-    #executor.execute(0, 0, 100000)
 
     #print(f"block timestamp {executor.get_block_timestamp()}")
 
@@ -144,8 +144,8 @@ if __name__ == "__main__":
     order_receiver.put(ExecutionOrder(
         block_number=0, 
         block_timestamp=0, 
-        token="0xe1D2f11C0a186A3f332967b5135FFC9a4568B15d", 
-        amount_in=72839918,
+        token="0xBB5E55F0F1D121711e7aA11E0768A9C94b8eb857", 
+        amount_in=124.293,
         amount_out_min=0,
         is_buy=False))
 

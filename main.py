@@ -1,12 +1,11 @@
 import asyncio
 import aioprocessing
 from multiprocessing import Process
+import threading
 
 import os
 import logging
 from decimal import Decimal
-
-from helpers import load_abi, timer_decorator, calculate_amount_out, calculate_amount_in
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -14,10 +13,11 @@ logging.basicConfig(level=logging.INFO)
 
 from watcher import BlockWatcher
 from simulator import Simulator
-from executor import Executor
+from executor import BuySellExecutor
 from helpers import Reporter
+from helpers import load_abi, timer_decorator, calculate_amount_out, calculate_amount_in
 
-from data import ExecutionData, ReportData, ReportDataType, SimulationResult
+from data import ExecutionOrder, SimulationResult
 
 # load config
 ERC20_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/ERC20.abi.json")
@@ -28,7 +28,12 @@ FACTORY_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniV2Factory
 INSPECTOR_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/InspectBot.abi.json")
 
 SIMULATION_AMOUNT = 0.001
-SLIPPAGE_THRESHOLD = 10 # in basis point
+SLIPPAGE_THRESHOLD = 30 # in basis point
+BUY_AMOUNT = 0.0003
+
+# global variables
+glb_fullfilled = False
+glb_lock = threading.Lock()
 
 async def watching_process(watching_broker):
     block_watcher = BlockWatcher(os.environ.get('WSS_URL'), 
@@ -41,6 +46,9 @@ async def watching_process(watching_broker):
     await block_watcher.run()
 
 async def strategy(watching_broker, execution_broker, report_broker):
+    global glb_fullfilled
+    global glb_lock
+
     while True:
         block_data = await watching_broker.coro_get()
 
@@ -50,7 +58,20 @@ async def strategy(watching_broker, execution_broker, report_broker):
             logging.info(f"SIMULATION result {simulation}")
 
             if simulation is not None and simulation.slippage < SLIPPAGE_THRESHOLD:
-                execution_broker.put(simulation)
+                if not glb_fullfilled:
+                    with glb_lock:
+                        glb_fullfilled = True
+
+                    execution_broker.put(ExecutionOrder(
+                        block_number=block_data.block_number,
+                        block_timestamp=block_data.block_timestamp,
+                        token=simulation.token,
+                        amount_in=BUY_AMOUNT,
+                        amount_out_min=0,
+                        is_buy=True,
+                    ))
+                else:
+                    logging.info(f"already fullfilled")
             else:
                 logging.info(f"simulation result is not qualified")
 
@@ -72,21 +93,24 @@ def simulate(block_data) -> SimulationResult:
     return simulator.inspect_token(block_data.pairs[0].token, SIMULATION_AMOUNT)
 
 def execution_process(execution_broker, report_broker):
-    # executor = Executor(execution_receiver,
-    #                     report_sender,
-    #                     os.environ.get('PRIVATE_KEY'),
-    #                     os.environ.get('EXECUTION_KEYS').split(','),
-    #                     os.environ.get('HTTPS_URL'),                        
-    #                     os.environ.get('JOEROUTER_ADDRESS'),
-    #                     os.environ.get('LBROUTER_ADDRESS'),
-    #                     os.environ.get('AVEX_ADDRESS'),
-    #                     os.environ.get('WAVAX_ADDRESS'),
-    #                     JOE_ROUTER_ABI,
-    #                     LBROUTER_ABI,
-    #                     AVEX_ABI,
-    #                     )
-    # asyncio.run(executor.run())
-    pass
+    executor = BuySellExecutor(
+        http_url=os.environ.get('HTTPS_URL'),
+        treasury_key=os.environ.get('PRIVATE_KEY'),
+        executor_keys=os.environ.get('EXECUTION_KEYS').split(','),
+        order_receiver=execution_broker,
+        report_sender=report_broker,
+        orderack_sender=report_broker,
+        gas_limit=200*10**3,
+        max_fee_per_gas=0.01*10**9,
+        max_priority_fee_per_gas=25*10**9,
+        deadline_delay=30,
+        weth=os.environ.get('WETH_ADDRESS'),
+        router=os.environ.get('ROUTER_ADDRESS'),
+        router_abi=ROUTER_ABI,
+        erc20_abi=ERC20_ABI,
+    )
+
+    asyncio.run(executor.run())
 
 def report_process(reporting_receiver):
     reporter = Reporter(reporting_receiver)

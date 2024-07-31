@@ -43,7 +43,7 @@ class BlockWatcher(metaclass=Singleton):
 
                 pairs = await self.filter_log_in_block(block_number)
 
-                logging.info(f"found pairs {pairs}")
+                logging.debug(f"found pairs {pairs}")
 
                 self.queue.put(BlockData(
                     block_number,
@@ -64,7 +64,7 @@ class BlockWatcher(metaclass=Singleton):
 
         if logs != ():
             for log in logs:
-                logging.info(f"found pair created {log}")
+                logging.debug(f"found pair created {log}")
                 if log['args']['token0'].lower() == self.weth_address.lower() or log['args']['token1'].lower() == self.weth_address.lower():
                     pairs.append(Pair(
                         token=log['args']['token0'] if log['args']['token1'].lower() == self.weth_address.lower() else log['args']['token1'],
