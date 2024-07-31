@@ -1,16 +1,16 @@
 import os
 
 class Pair:
-    def __init__(self, token0, token1, address) -> None:
-        self.token0 = token0
-        self.token1 = token1
+    def __init__(self, token, token_index, address) -> None:
+        self.token = token
+        self.token_index = token_index
         self.address = address
 
     def  __str__(self) -> str:
         return f"{self.address}"
 
 class BlockData:
-    def __init__(self, block_number, block_timestamp, base_fee, gas_used, gas_limit, pairs) -> None:
+    def __init__(self, block_number, block_timestamp, base_fee, gas_used, gas_limit, pairs = []) -> None:
         self.block_number = block_number
         self.block_timestamp = block_timestamp
         self.base_fee = base_fee
@@ -24,16 +24,18 @@ class BlockData:
         Pairs created {len(self.pairs)}
         """
 
-class ExecutionData:
-    def __init__(self, block_number, block_timestamp, amount0In, amount1Min = 0) -> None:
+class ExecutionOrder:
+    def __init__(self, block_number, block_timestamp, token, amount_in, amount_out_min, is_buy) -> None:
         self.block_number = block_number
         self.block_timestamp = block_timestamp
-        self.amount0In = amount0In
-        self.amount1Min = amount1Min
+        self.token = token
+        self.amount_in = amount_in
+        self.amount_out_min = amount_out_min
+        self.is_buy = is_buy
 
     def __str__(self) -> str:
         return f"""
-        Execution order block #{self.block_number} amount0In {self.amount0In} amount1Min {self.amount1Min}
+        Execution order block #{self.block_number} token {self.token} amountIn {self.amount_in} amountOutMin {self.amount_out_min} isBuy {self.is_buy}
         """
 
 from enum import IntEnum
