@@ -36,5 +36,5 @@ $ make test
 
 - Trial test
 ```bash
-$ python main.py
+$ python test.py
 ```
