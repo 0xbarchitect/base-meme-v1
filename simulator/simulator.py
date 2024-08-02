@@ -86,6 +86,9 @@ class Simulator:
         # set priority gas equal base gas
         gas_fee = calculate_next_block_base_fee(self.current_block.base_fee, self.current_block.gas_used, self.current_block.gas_limit) * Decimal(2) * Decimal(gas_limit)
         return Web3.from_wei(gas_fee, 'ether')
+    
+    async def main():
+        pass
 
 if __name__ == '__main__':
     from dotenv import load_dotenv

@@ -31,19 +31,25 @@ SIMULATION_AMOUNT = 0.001
 SLIPPAGE_THRESHOLD = 30 # in basis point
 BUY_AMOUNT = 0.0003
 
+# gas
+GAS_LIMIT = 200*100**3
+MAX_FEE_PER_GAS = 10**9
+MAX_PRIORITY_FEE_PER_GAS = 10**9
+DEADLINE_DELAY_SECONDS = 30
+
 # global variables
 glb_fullfilled = False
 glb_lock = threading.Lock()
 
-async def watching_process(watching_broker):
+async def watching_process(watching_broker, report_broker):
     block_watcher = BlockWatcher(os.environ.get('WSS_URL'), 
                                  watching_broker, 
+                                 report_broker,
                                  os.environ.get('FACTORY_ADDRESS'),
                                  FACTORY_ABI,
                                  os.environ.get('WETH_ADDRESS'),
                                  )
-    #asyncio.run(block_watcher.run())
-    await block_watcher.run()
+    await block_watcher.main()
 
 async def strategy(watching_broker, execution_broker, report_broker):
     global glb_fullfilled
@@ -100,10 +106,10 @@ def execution_process(execution_broker, report_broker):
         order_receiver=execution_broker,
         report_sender=report_broker,
         orderack_sender=report_broker,
-        gas_limit=200*10**3,
-        max_fee_per_gas=0.01*10**9,
-        max_priority_fee_per_gas=25*10**9,
-        deadline_delay=30,
+        gas_limit=GAS_LIMIT,
+        max_fee_per_gas=MAX_FEE_PER_GAS,
+        max_priority_fee_per_gas=MAX_PRIORITY_FEE_PER_GAS,
+        deadline_delay=DEADLINE_DELAY_SECONDS,
         weth=os.environ.get('WETH_ADDRESS'),
         router=os.environ.get('ROUTER_ADDRESS'),
         router_abi=ROUTER_ABI,
@@ -121,10 +127,6 @@ async def main():
     execution_broker = aioprocessing.AioQueue()
     report_broker = aioprocessing.AioQueue()
     
-    # WATCHING process
-    #p1 = Process(target=watching_process, args=(watching_broker,))
-    #p1.start()
-
     # EXECUTION process
     p2 = Process(target=execution_process, args=(execution_broker,report_broker,))
     p2.start()

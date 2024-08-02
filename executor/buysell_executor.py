@@ -88,6 +88,10 @@ class BuySellExecutor(BaseExecutor):
 
                 swap_logs = swap_logs[0]
 
+                amount_out = Web3.from_wei(swap_logs['args']['amount0Out'], 'ether') if pair.token_index==0 else Web3.from_wei(swap_logs['args']['amount1Out'], 'ether')
+                if not is_buy:
+                    amount_out = Web3.from_wei(swap_logs['args']['amount1Out'], 'ether') if pair.token_index==0 else Web3.from_wei(swap_logs['args']['amount0Out'], 'ether')
+
                 ack = ExecutionAck(
                     lead_block=lead_block,
                     block_number=swap_logs['blockNumber'],
@@ -95,11 +99,12 @@ class BuySellExecutor(BaseExecutor):
                     tx_status=tx_receipt['status'],
                     pair=pair,
                     amount_in=amount_in,
-                    amount_out=Web3.from_wei(swap_logs['args']['amount0Out'], 'ether') if pair.token_index==0 else Web3.from_wei(swap_logs['args']['amount1Out'], 'ether'),
+                    amount_out=amount_out,
                     is_buy=is_buy,
                 )
 
                 logging.info(f"execution ack {ack}")
+                self.report_sender.put(ack)
         
         except Exception as e:
             logging.error(f"{amount_in} catch exception {e}")
@@ -160,23 +165,27 @@ if __name__ == "__main__":
     #print(f"block timestamp {executor.get_block_timestamp()}")
 
     # queue jobs
-    order_receiver.put(ExecutionOrder(
-        block_number=0, 
-        block_timestamp=0, 
-        pair=Pair(
-            token="0xe1D2f11C0a186A3f332967b5135FFC9a4568B15d",
-            token_index=1,
-            address="0x6A89E43ef759677d7647bB46BF3890cdC18264BC",
-        ) , 
-        amount_in=0.0001,
-        amount_out_min=0,
-        is_buy=True))
+    # order_receiver.put(ExecutionOrder(
+    #     block_number=0, 
+    #     block_timestamp=0, 
+    #     pair=Pair(
+    #         token="0xe1D2f11C0a186A3f332967b5135FFC9a4568B15d",
+    #         token_index=1,
+    #         address="0x6A89E43ef759677d7647bB46BF3890cdC18264BC",
+    #     ) , 
+    #     amount_in=0.0001,
+    #     amount_out_min=0,
+    #     is_buy=True))
     
     # order_receiver.put(ExecutionOrder(
     #     block_number=0, 
     #     block_timestamp=0, 
-    #     token="0xBB5E55F0F1D121711e7aA11E0768A9C94b8eb857", 
-    #     amount_in=124.293,
+    #     pair=Pair(
+    #         token="0xe1D2f11C0a186A3f332967b5135FFC9a4568B15d",
+    #         token_index=1,
+    #         address="0x6A89E43ef759677d7647bB46BF3890cdC18264BC",
+    #     ),
+    #     amount_in=85154749.72784,
     #     amount_out_min=0,
     #     is_buy=False))
 
