@@ -173,7 +173,7 @@ JAZZMIN_SETTINGS = {
     "site_title": "Phoenix",
     "site_brand": "Phoenix",
     # Copyright on the footer
-    "copyright": "UncleBa 2024",
+    "copyright": "Phoenix Inc.",
     # Field name on user model that contains avatar ImageField/URLField/Charfield or a callable that receives the user
     "user_avatar": None,
 

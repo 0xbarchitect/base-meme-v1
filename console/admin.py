@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from console.models import Block, Transaction
+from console.models import Block, Transaction, Pair, WatchingList, Position
 
 class ConsoleAdminSite(admin.AdminSite):
     index_title = "Console homepage"
@@ -37,7 +37,46 @@ class TransactionAdmin(NoDeletePermissionModelAdmin):
         <button><a class="btn" href="/admin/console/transaction/{obj.id}/change/">Edit</a></button>&emsp;
         """)
 
-console_admin_site = ConsoleAdminSite(name="console_admin")
+class PairAdmin(NoDeletePermissionModelAdmin):
+    list_filter = ['is_deleted']
+    list_display = ('id', 'address', 'token', 'token_index', 'reserve_token', 'reserve_eth', 'deployed_at', 'buttons')
+    fields = ('address', 'token', 'token_index', 'reserve_token', 'reserve_eth', 'deployed_at',)
+    readonly_fields = ('address', 'token', 'token_index', 'reserve_token', 'reserve_eth', 'deployed_at',)
+    
+    @admin.display(description='Actions')
+    def buttons(self, obj):
+        return format_html(f"""
+        <button><a class="btn" href="/admin/console/pair/{obj.id}/change/">Edit</a></button>&emsp;
+        """)
+    
+class WatchingListAdmin(NoDeletePermissionModelAdmin):
+    list_filter = ['is_deleted']
+    list_display = ('id', 'pair',  'buttons')
+    fields = ('pair',)
+    readonly_fields = ('pair',)
+    
+    @admin.display(description='Actions')
+    def buttons(self, obj):
+        return format_html(f"""
+        <button><a class="btn" href="/admin/console/watchinglist/{obj.id}/change/">Edit</a></button>&emsp;
+        """)
+    
+class PositionAdmin(NoDeletePermissionModelAdmin):
+    list_filter = ['is_deleted']
+    list_display = ('id', 'pair', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidation_attempts', 'pnl', 'buttons')
+    fields = ('pair', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidation_attempts', 'pnl',)
+    readonly_fields = ('pair', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidation_attempts', 'pnl',)
+    
+    @admin.display(description='Actions')
+    def buttons(self, obj):
+        return format_html(f"""
+        <button><a class="btn" href="/admin/console/position/{obj.id}/change/">Edit</a></button>&emsp;
+        """)
+    
+admin_site = ConsoleAdminSite(name="console_admin")
 
-console_admin_site.register(Block, BlockAdmin)
-console_admin_site.register(Transaction, TransactionAdmin)
+admin_site.register(Block, BlockAdmin)
+admin_site.register(Transaction, TransactionAdmin)
+admin_site.register(Pair, PairAdmin)
+admin_site.register(WatchingList, WatchingListAdmin)
+admin_site.register(Position, PositionAdmin)

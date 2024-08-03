@@ -16,10 +16,10 @@ logging.basicConfig(level=logging.INFO)
 from watcher import BlockWatcher
 from simulator import Simulator
 from executor import BuySellExecutor
-from helpers import Reporter
+from reporter import Reporter
 from helpers import load_abi, timer_decorator, calculate_price, calculate_next_block_base_fee
 
-from data import ExecutionOrder, SimulationResult, ExecutionAck, Position, TxStatus
+from data import ExecutionOrder, SimulationResult, ExecutionAck, Position, TxStatus, ReportData, ReportDataType
 
 # load config
 ERC20_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/ERC20.abi.json")
@@ -43,7 +43,7 @@ GAS_COST = 300*100**3
 DEADLINE_DELAY_SECONDS = 30
 
 # global variables
-glb_fullfilled = False
+glb_fullfilled = True # TODO
 glb_inventory = []
 glb_lock = threading.Lock()
 
@@ -64,7 +64,7 @@ async def watching_process(watching_broker, watching_notifier):
                                 )
     await block_watcher.main()
 
-async def strategy(watching_broker, execution_broker,):
+async def strategy(watching_broker, execution_broker, report_broker):
     global glb_fullfilled
     global glb_lock
     global glb_inventory
@@ -78,6 +78,12 @@ async def strategy(watching_broker, execution_broker,):
         block_data = await watching_broker.coro_get()
 
         logging.info(f"STRATEGY received block {block_data}")
+
+        # send report
+        report_broker.put(ReportData(
+            type=ReportDataType.BLOCK,
+            data=block_data,
+        ))
 
         if len(glb_inventory)>0:
             for position in glb_inventory:
@@ -106,11 +112,12 @@ async def strategy(watching_broker, execution_broker,):
                             ))
 
         elif len(block_data.pairs)>0:
-            simulation_result = simulate(block_data)
-            logging.info(f"SIMULATION result {simulation_result}")
+            if not glb_fullfilled:
+                simulation_result = simulate(block_data)
 
-            if simulation_result is not None and isinstance(simulation_result, SimulationResult):
-                if not glb_fullfilled:
+                logging.info(f"SIMULATION result {simulation_result}")
+
+                if simulation_result is not None and isinstance(simulation_result, SimulationResult):
                     with glb_lock:
                         glb_fullfilled = True
 
@@ -122,10 +129,11 @@ async def strategy(watching_broker, execution_broker,):
                         amount_out_min=0,
                         is_buy=True,
                     ))
+
                 else:
-                    logging.info(f"already fullfilled")
+                    logging.info(f"simulation result is not qualified")
             else:
-                logging.info(f"simulation result is not qualified")
+                logging.info(f"already fullfilled")
 
 
 @timer_decorator
@@ -212,7 +220,7 @@ async def main():
         global glb_inventory
         global glb_lock
         global glb_fullfilled
-        
+
         while True:
             report = await execution_report.coro_get()
             if report is not None and isinstance(report, ExecutionAck) and report.tx_status == TxStatus.SUCCESS:
@@ -242,9 +250,9 @@ async def main():
 
     #await strategy(watching_broker, execution_broker)
     await asyncio.gather(watching_process(watching_broker, watching_notifier),
-                         strategy(watching_broker, execution_broker,),
+                         strategy(watching_broker, execution_broker, report_broker),
                          handle_execution_report(),
-                         #reporter.run(),
+                         reporter.run(),
                          )
 
 if __name__=="__main__":

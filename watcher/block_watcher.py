@@ -68,16 +68,45 @@ class BlockWatcher(metaclass=Singleton):
 
     @timer_decorator
     def filter_log_in_block(self, block_number):
-        #block_number = 17885237 # TODO
+        #block_number = 17918019 # TODO
 
         def filter_paircreated_log(block_number):
+            def get_reserves(pair):
+                contract = self.w3.eth.contract(address=pair,abi=self.pair_abi)
+                reserves = contract.functions.getReserves().call()
+                return reserves
+
             pair_created_logs = self.factory.events.PairCreated().get_logs(
                 fromBlock = block_number,
                 toBlock = block_number,
             )
+
+            pairs = []
+            if pair_created_logs != ():
+                for log in pair_created_logs:
+                    logging.debug(f"found pair created {log}")
+                    if log['args']['token0'].lower() == self.weth_address.lower() or log['args']['token1'].lower() == self.weth_address.lower():
+                        pairs.append(Pair(
+                            token=log['args']['token0'] if log['args']['token1'].lower() == self.weth_address.lower() else log['args']['token1'],
+                            token_index=0 if log['args']['token1'].lower() == self.weth_address.lower() else 1,
+                            address=log['args']['pair'],
+                        ))
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                future_to_pair = {executor.submit(get_reserves, pair.address): idx for idx,pair in enumerate(pairs)}
+                for future in concurrent.futures.as_completed(future_to_pair):
+                    idx = future_to_pair[future]
+                    try:
+                        result = future.result()
+                        logging.info(f"getReserves {pairs[idx].address} result {result}")
+                        pairs[idx].reserveToken = Web3.from_wei(result[0],'ether') if pairs[idx].token_index == 0 else Web3.from_wei(result[1], 'ether')
+                        pairs[idx].reserveETH = Web3.from_wei(result[1],'ether') if pairs[idx].token_index == 0 else Web3.from_wei(result[0], 'ether')
+                    except Exception as e:
+                        logging.error(f"getReserves {pair} error {e}")
+
             return FilterLogs(
                 type=FilterLogsType.PAIR_CREATED,
-                data=pair_created_logs,
+                data=pairs,
             )
 
         def filter_sync_log(pair, block_number) -> None:
@@ -108,15 +137,8 @@ class BlockWatcher(metaclass=Singleton):
 
                     if result is not None and isinstance(result, FilterLogs):
                         if result.type == FilterLogsType.PAIR_CREATED:
-                            if result.data != ():
-                                for log in result.data:
-                                    logging.debug(f"found pair created {log}")
-                                    if log['args']['token0'].lower() == self.weth_address.lower() or log['args']['token1'].lower() == self.weth_address.lower():
-                                        pairs.append(Pair(
-                                            token=log['args']['token0'] if log['args']['token1'].lower() == self.weth_address.lower() else log['args']['token1'],
-                                            token_index=0 if log['args']['token1'].lower() == self.weth_address.lower() else 1,
-                                            address=log['args']['pair'],
-                                        ))
+                            if len(result.data)>0:
+                                pairs = result.data
 
                         elif result.type == FilterLogsType.SYNC:
                             if result.data != ():
@@ -168,50 +190,50 @@ if __name__ == "__main__":
     block_broker = aioprocessing.AioQueue()
     report_broker = aioprocessing.AioQueue()
 
-    report_broker.put(ExecutionAck(
-        lead_block=0,
-        block_number=0,
-        tx_hash='0xabc',
-        tx_status=1,
-        pair=Pair(
-            token='0xabc',
-            token_index=1,
-            address='0x6A89E43ef759677d7647bB46BF3890cdC18264BC',
-        ),
-        amount_in=1,
-        amount_out=1,
-        is_buy=True,
-    ))
+    # report_broker.put(ExecutionAck(
+    #     lead_block=0,
+    #     block_number=0,
+    #     tx_hash='0xabc',
+    #     tx_status=1,
+    #     pair=Pair(
+    #         token='0xabc',
+    #         token_index=1,
+    #         address='0x6A89E43ef759677d7647bB46BF3890cdC18264BC',
+    #     ),
+    #     amount_in=1,
+    #     amount_out=1,
+    #     is_buy=True,
+    # ))
 
-    report_broker.put(ExecutionAck(
-        lead_block=0,
-        block_number=0,
-        tx_hash='0xabc',
-        tx_status=1,
-        pair=Pair(
-            token='0xabc',
-            token_index=1,
-            address='0xe1D2f11C0a186A3f332967b5135FFC9a4568B15d',
-        ),
-        amount_in=1,
-        amount_out=1,
-        is_buy=True,
-    ))
+    # report_broker.put(ExecutionAck(
+    #     lead_block=0,
+    #     block_number=0,
+    #     tx_hash='0xabc',
+    #     tx_status=1,
+    #     pair=Pair(
+    #         token='0xabc',
+    #         token_index=1,
+    #         address='0xe1D2f11C0a186A3f332967b5135FFC9a4568B15d',
+    #     ),
+    #     amount_in=1,
+    #     amount_out=1,
+    #     is_buy=True,
+    # ))
 
-    report_broker.put(ExecutionAck(
-        lead_block=0,
-        block_number=0,
-        tx_hash='0xabc',
-        tx_status=1,
-        pair=Pair(
-            token='0xabc',
-            token_index=1,
-            address='0xe1D2f11C0a186A3f332967b5135FFC9a4568B15d',
-        ),
-        amount_in=1,
-        amount_out=1,
-        is_buy=False,
-    ))
+    # report_broker.put(ExecutionAck(
+    #     lead_block=0,
+    #     block_number=0,
+    #     tx_hash='0xabc',
+    #     tx_status=1,
+    #     pair=Pair(
+    #         token='0xabc',
+    #         token_index=1,
+    #         address='0xe1D2f11C0a186A3f332967b5135FFC9a4568B15d',
+    #     ),
+    #     amount_in=1,
+    #     amount_out=1,
+    #     is_buy=False,
+    # ))
 
     block_watcher = BlockWatcher(
                                 https_url=os.environ.get('HTTPS_URL'),
@@ -229,7 +251,10 @@ if __name__ == "__main__":
             while True:
                 block_data = await block_broker.coro_get()
                 logging.info(f"receive block {block_data}")
-                logging.info(f"block inventory {block_data.inventory[0]}")
+                if len(block_data.pairs)>0:
+                    logging.info(f"pair {block_data.pairs[0]}")
+                #logging.info(f"block inventory {block_data.inventory[0]}")
+
         await asyncio.gather(block_watcher.main(), receive_block())
     
     #asyncio.run(block_watcher.main())

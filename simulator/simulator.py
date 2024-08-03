@@ -114,9 +114,9 @@ if __name__ == '__main__':
                             BlockData(0,0,25000000000,45059,15000000,[]),)
     
     result=simulator.inspect_pair(Pair(
-        token='0x6CC6b5626075a983737a4bd123A57afE940f7523',
+        address='0xccA6946D9ab268D7C76C71428c983e1Ec8484552',
+        token='0xA01538254Ed4330A672e90A44e05012355A04f07',
         token_index=1,
-        address='0xfoo',
         reserveToken=0,
         reserveETH=0
     ), 0.0003)

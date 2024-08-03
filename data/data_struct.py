@@ -67,7 +67,9 @@ from enum import IntEnum
 
 class ReportDataType(IntEnum):
     BLOCK = 0
-    COUNTER_TRADE = 1
+    TRANSACTION = 1
+    PAIR = 2
+    POSITION = 3
 
 class ReportData:
     def __init__(self, type, data) -> None:

@@ -197,11 +197,11 @@ if __name__ == "__main__":
     #     block_number=0, 
     #     block_timestamp=0, 
     #     pair=Pair(
-    #         token="0xb918D173d1651dd1aA2063Dd5BeA8B460f842D11",
+    #         address="0x5A0D7c67Be648C73f76c7468EFFaFc5905eBeee1",
+    #         token="0xB09DF4787b362388D7Cc411Eb1A628eDB6f845E0",
     #         token_index=1,
-    #         address="0x85dB80910E46e6AA9D152A0008bF223a6459ccAF",
     #     ) , 
-    #     amount_in=0.00001,
+    #     amount_in=0.0001,
     #     amount_out_min=0,
     #     is_buy=True))
     
@@ -209,11 +209,11 @@ if __name__ == "__main__":
         block_number=0, 
         block_timestamp=0, 
         pair=Pair(
-            token="0x6CC6b5626075a983737a4bd123A57afE940f7523",
+            address="0x5A0D7c67Be648C73f76c7468EFFaFc5905eBeee1",
+            token="0xB09DF4787b362388D7Cc411Eb1A628eDB6f845E0",
             token_index=1,
-            address="0x2B5D61aCffC60C2FB32Dde4e4CB372181eEd2F57",
         ),
-        amount_in=1484.871,
+        amount_in=4995462,
         amount_out_min=0,
         is_buy=False))
 
