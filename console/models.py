@@ -11,10 +11,6 @@ class Block(models.Model):
     base_fee = models.BigIntegerField(null=True, default=0)
     gas_used = models.BigIntegerField(null=True, default=0)
     gas_limit = models.BigIntegerField(null=True, default=0)
-    reserve0 = models.FloatField(null=True, default=0)
-    reserve1 = models.FloatField(null=True, default=0)
-    amount0_diff = models.FloatField(null=True, default=0)
-    amount1_diff = models.FloatField(null=True, default=0)
 
     created_at = models.DateTimeField(null=True,auto_now_add=True)
     updated_at = models.DateTimeField(null=True,auto_now=True)
@@ -23,7 +19,6 @@ class Block(models.Model):
     def __str__(self) -> str:
         return str(self.block_number)
     
-
 class Transaction(models.Model):
     class Meta():
         db_table = 'transaction'
@@ -45,46 +40,77 @@ class Transaction(models.Model):
 
     def __str__(self) -> str:
         return str(self.tx_hash)
-    
-class SwapTokenForNative(models.Model):
+
+class Pair(models.Model):
     class Meta():
-        db_table = 'swap_token_for_native'
+        db_table = 'pair'
 
     id = models.BigAutoField(primary_key=True)
-    transaction = models.ForeignKey(Transaction, on_delete=models.DO_NOTHING)
-    lead_block = models.ForeignKey(Block, on_delete=models.DO_NOTHING, null=True)
-
-    amount_in = models.FloatField(null=True, default=0)
-    amount_out_min_native = models.FloatField(null=True, default=0)
-    to = models.CharField(max_length=42, null=True)
-    deadline = models.BigIntegerField(null=True, default=0)
+    address = models.CharField(max_length=42, unique=True)
+    token = models.CharField(max_length=42)
+    token_index = models.IntegerField(null=True, default=0)
+    reserve_token = models.FloatField(null=True, default=0)
+    reserve_eth = models.FloatField(null=True, default=0)
+    deployed_at = models.DateTimeField(null=True)
 
     created_at = models.DateTimeField(null=True,auto_now_add=True)
     updated_at = models.DateTimeField(null=True,auto_now=True)
     is_deleted = models.IntegerField(null=True,default=0)
 
     def __str__(self) -> str:
-        return f"{str(self.transaction.block.block_number)}_{str(self.transaction.tx_hash)}"
+        return f"{self.address}"
     
-class SwapEvent(models.Model):
+class WatchingList(models.Model):
     class Meta():
-        db_table = 'swap_event'
+        db_table = 'watching_list'
 
     id = models.BigAutoField(primary_key=True)
-    transaction = models.ForeignKey(Transaction, on_delete=models.DO_NOTHING)
-
-    sender = models.CharField(max_length=42, null=True)
-    to = models.CharField(max_length=42, null=True)
-    amount0_in = models.FloatField(null=True, default=0)
-    amount1_in = models.FloatField(null=True, default=0)
-    amount0_out = models.FloatField(null=True, default=0)
-    amount1_out = models.FloatField(null=True, default=0)
+    pair = models.ForeignKey(Pair, on_delete=models.DO_NOTHING)
 
     created_at = models.DateTimeField(null=True,auto_now_add=True)
     updated_at = models.DateTimeField(null=True,auto_now=True)
     is_deleted = models.IntegerField(null=True,default=0)
 
     def __str__(self) -> str:
-        return f"{str(self.transaction.block.block_number)}_{str(self.transaction.tx_hash)}"
+        return f"{self.pair}"
+    
+class Position(models.Model):
+    class Meta():
+        db_table = 'position'
+
+    id = models.BigAutoField(primary_key=True)
+    pair = models.ForeignKey(Pair, on_delete=models.DO_NOTHING)
+    amount = models.FloatField(null=True, default=0)
+    buy_price = models.FloatField(null=True, default=0)
+    purchased_at = models.DateTimeField(null=True)
+    is_liquidated = models.IntegerField(null=True, default=0)
+    sell_price = models.FloatField(null=True, default=0)
+    liquidation_attempts = models.IntegerField(null=True, default=0)
+    pnl = models.FloatField(null=True, default=0)
+
+    created_at = models.DateTimeField(null=True,auto_now_add=True)
+    updated_at = models.DateTimeField(null=True,auto_now=True)
+    is_deleted = models.IntegerField(null=True,default=0)
+
+    def __str__(self) -> str:
+        return f"{self.pair}"
+    
+class PositionTransaction(models.Model):
+    class Meta():
+        db_table = 'position_transaction'
+
+    id = models.BigAutoField(primary_key=True)
+    position = models.ForeignKey(Position, on_delete=models.DO_NOTHING)
+    transaction = models.ForeignKey(Transaction, on_delete=models.DO_NOTHING)
+    is_buy = models.IntegerField(null=True,default=0)
+
+    created_at = models.DateTimeField(null=True,auto_now_add=True)
+    updated_at = models.DateTimeField(null=True,auto_now=True)
+    is_deleted = models.IntegerField(null=True,default=0)
+
+    def __str__(self) -> str:
+        return f"{self.pair}"
+    
+
     
 
