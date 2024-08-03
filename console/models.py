@@ -60,20 +60,6 @@ class Pair(models.Model):
     def __str__(self) -> str:
         return f"{self.address}"
     
-class WatchingList(models.Model):
-    class Meta():
-        db_table = 'watching_list'
-
-    id = models.BigAutoField(primary_key=True)
-    pair = models.ForeignKey(Pair, on_delete=models.DO_NOTHING)
-
-    created_at = models.DateTimeField(null=True,auto_now_add=True)
-    updated_at = models.DateTimeField(null=True,auto_now=True)
-    is_deleted = models.IntegerField(null=True,default=0)
-
-    def __str__(self) -> str:
-        return f"{self.pair}"
-    
 class Position(models.Model):
     class Meta():
         db_table = 'position'
@@ -84,6 +70,7 @@ class Position(models.Model):
     buy_price = models.FloatField(null=True, default=0)
     purchased_at = models.DateTimeField(null=True)
     is_liquidated = models.IntegerField(null=True, default=0)
+    liquidated_at = models.DateTimeField(null=True)
     sell_price = models.FloatField(null=True, default=0)
     liquidation_attempts = models.IntegerField(null=True, default=0)
     pnl = models.FloatField(null=True, default=0)

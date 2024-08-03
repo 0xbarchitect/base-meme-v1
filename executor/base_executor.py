@@ -16,7 +16,7 @@ ALLOWANCE_TOKEN_AMOUNT = 10**6
 MINIMUM_AVAX_BALANCE = 0.01
 
 class BaseExecutor(metaclass=Singleton):
-    def __init__(self, http_url, treasury_key, executor_keys, order_receiver, report_sender, orderack_sender, gas_limit, max_fee_per_gas, max_priority_fee_per_gas, deadline_delay) -> None:
+    def __init__(self, http_url, treasury_key, executor_keys, order_receiver, report_sender, gas_limit, max_fee_per_gas, max_priority_fee_per_gas, deadline_delay) -> None:
         self.w3 = Web3(Web3.HTTPProvider(http_url))
         if self.w3.is_connected() == True:
             logging.info(f"web3 provider {http_url} connected")
@@ -38,7 +38,6 @@ class BaseExecutor(metaclass=Singleton):
 
         self.order_receiver = order_receiver
         self.report_sender = report_sender
-        self.orderack_sender = orderack_sender
 
     def build_w3_account(self, private_key) -> W3Account:
         acct = self.w3.eth.account.from_key(private_key)

@@ -56,9 +56,9 @@ def calculate_amount_out(reserveIn, reserveOut, amountIn):
 def calculate_amount_in(reserveIn, reserveOut, amountOut):
     return (reserveIn * reserveOut)/(reserveOut - amountOut) - reserveIn
 
-def calculate_price(reserveToken, reserveETH):
-    if reserveToken != 0 and reserveETH != 0:
-        return Decimal(reserveETH)/Decimal(reserveToken)
+def calculate_price(reserve_token, reserve_eth):
+    if reserve_token != 0 and reserve_eth != 0:
+        return Decimal(reserve_eth)/Decimal(reserve_token)
     return 0
 
 def calculate_next_block_base_fee(base_fee, gas_used, gas_limit):

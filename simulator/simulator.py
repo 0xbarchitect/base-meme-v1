@@ -114,11 +114,11 @@ if __name__ == '__main__':
                             BlockData(0,0,25000000000,45059,15000000,[]),)
     
     result=simulator.inspect_pair(Pair(
-        address='0xccA6946D9ab268D7C76C71428c983e1Ec8484552',
-        token='0xA01538254Ed4330A672e90A44e05012355A04f07',
+        address='0x8b0cEfbAF872C8DF00CdAB4c1D06481030ee8866',
+        token='0xa4DC5fCCC203A98537c26F060Bd69dD87Ce7BC3B',
         token_index=1,
-        reserveToken=0,
-        reserveETH=0
+        reserve_token=0,
+        reserve_eth=0
     ), 0.0003)
 
     logging.info(f"{result}")

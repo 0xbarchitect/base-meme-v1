@@ -98,9 +98,9 @@ class BlockWatcher(metaclass=Singleton):
                     idx = future_to_pair[future]
                     try:
                         result = future.result()
-                        logging.info(f"getReserves {pairs[idx].address} result {result}")
-                        pairs[idx].reserveToken = Web3.from_wei(result[0],'ether') if pairs[idx].token_index == 0 else Web3.from_wei(result[1], 'ether')
-                        pairs[idx].reserveETH = Web3.from_wei(result[1],'ether') if pairs[idx].token_index == 0 else Web3.from_wei(result[0], 'ether')
+                        logging.debug(f"getReserves {pairs[idx].address} result {result}")
+                        pairs[idx].reserve_token = Web3.from_wei(result[0],'ether') if pairs[idx].token_index == 0 else Web3.from_wei(result[1], 'ether')
+                        pairs[idx].reserve_eth = Web3.from_wei(result[1],'ether') if pairs[idx].token_index == 0 else Web3.from_wei(result[0], 'ether')
                     except Exception as e:
                         logging.error(f"getReserves {pair} error {e}")
 
@@ -147,8 +147,8 @@ class BlockWatcher(metaclass=Singleton):
                                     for pair in self.inventory:
                                         if pair.address == contract:
                                             logging.info(f"update reserves for inventory {pair.address}")
-                                            pair.reserveToken = Web3.from_wei(log['args']['reserve0'], 'ether') if pair.token_index==0 else Web3.from_wei(log['args']['reserve1'], 'ether')
-                                            pair.reserveETH = Web3.from_wei(log['args']['reserve1'], 'ether') if pair.token_index==0 else Web3.from_wei(log['args']['reserve0'], 'ether')
+                                            pair.reserve_token = Web3.from_wei(log['args']['reserve0'], 'ether') if pair.token_index==0 else Web3.from_wei(log['args']['reserve1'], 'ether')
+                                            pair.reserve_eth = Web3.from_wei(log['args']['reserve1'], 'ether') if pair.token_index==0 else Web3.from_wei(log['args']['reserve0'], 'ether')
                             
 
                 except Exception as e:
@@ -161,15 +161,15 @@ class BlockWatcher(metaclass=Singleton):
             report = await self.report_broker.coro_get()
 
             if report is not None and isinstance(report, ExecutionAck) and report.pair is not None:
-                logging.info(f"receive report {report}")
+                logging.info(f"WATCHER receive report {report}")
                 if report.is_buy and report.pair.address not in [pair.address for pair in self.inventory]:
                     self.inventory.append(report.pair)
-                    logging.debug(f"add pair {report.pair} to watching {self.inventory}")
+                    logging.info(f"WATCHER add pair {report.pair} to watching {self.inventory}")
                 else:
                     for idx,pair in enumerate(self.inventory):
                         if pair.address == report.pair.address:
                             self.inventory.pop(idx)
-                            logging.debug(f"remove pair {report.pair} from watching {self.inventory}")
+                            logging.info(f"WATCHER remove pair {report.pair} from watching {self.inventory}")
     
     async def main(self):
         await asyncio.gather(

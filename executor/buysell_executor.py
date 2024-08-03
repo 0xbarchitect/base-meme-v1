@@ -17,9 +17,9 @@ from data import ExecutionOrder, Pair, ExecutionAck, TxStatus
 
 class BuySellExecutor(BaseExecutor):
     def __init__(self, http_url, treasury_key, executor_keys, order_receiver, report_sender, \
-                orderack_sender, gas_limit, max_fee_per_gas, max_priority_fee_per_gas, deadline_delay, \
+                gas_limit, max_fee_per_gas, max_priority_fee_per_gas, deadline_delay, \
                 weth, router, router_abi, erc20_abi, pair_abi) -> None:
-        super().__init__(http_url, treasury_key, executor_keys, order_receiver, report_sender, orderack_sender, gas_limit, max_fee_per_gas, max_priority_fee_per_gas, deadline_delay)
+        super().__init__(http_url, treasury_key, executor_keys, order_receiver, report_sender, gas_limit, max_fee_per_gas, max_priority_fee_per_gas, deadline_delay)
         self.weth = weth
         self.router = self.w3.eth.contract(address=router, abi=router_abi)
         self.erc20_abi = erc20_abi
@@ -75,10 +75,12 @@ class BuySellExecutor(BaseExecutor):
             # send raw tx
             signed = self.w3.eth.account.sign_transaction(tx, priv_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)
-            logging.info(f"created tx hash {Web3.to_hex(tx_hash)}")
+            logging.debug(f"created tx hash {Web3.to_hex(tx_hash)}")
 
             tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-            logging.info(f"{amount_in} tx hash {Web3.to_hex(tx_hash)} in block #{tx_receipt['blockNumber']} with status {tx_receipt['status']}")
+
+            logging.debug(f"tx receipt {tx_receipt}")
+            logging.debug(f"{amount_in} tx hash {Web3.to_hex(tx_hash)} in block #{tx_receipt['blockNumber']} with status {tx_receipt['status']}")
 
             # send acknowledgement
             if tx_receipt['status'] == TxStatus.SUCCESS:
@@ -125,7 +127,7 @@ class BuySellExecutor(BaseExecutor):
 
             ack = ExecutionAck(
                 lead_block=lead_block,
-                block_number=swap_logs['blockNumber'],
+                block_number=tx_receipt['blockNumber'],
                 tx_hash='0x',
                 tx_status=TxStatus.FAILED,
                 pair=pair,
@@ -178,7 +180,6 @@ if __name__ == "__main__":
         executor_keys=os.environ.get('EXECUTION_KEYS').split(','),
         order_receiver=order_receiver,
         report_sender=report_sender,
-        orderack_sender=report_sender,
         gas_limit=200*10**3,
         max_fee_per_gas=0.01*10**9,
         max_priority_fee_per_gas=25*10**9,
@@ -197,11 +198,11 @@ if __name__ == "__main__":
     #     block_number=0, 
     #     block_timestamp=0, 
     #     pair=Pair(
-    #         address="0x5A0D7c67Be648C73f76c7468EFFaFc5905eBeee1",
-    #         token="0xB09DF4787b362388D7Cc411Eb1A628eDB6f845E0",
+    #         address='0x8b0cEfbAF872C8DF00CdAB4c1D06481030ee8866',
+    #         token='0xa4DC5fCCC203A98537c26F060Bd69dD87Ce7BC3B',
     #         token_index=1,
     #     ) , 
-    #     amount_in=0.0001,
+    #     amount_in=0.00003,
     #     amount_out_min=0,
     #     is_buy=True))
     
@@ -209,11 +210,11 @@ if __name__ == "__main__":
         block_number=0, 
         block_timestamp=0, 
         pair=Pair(
-            address="0x5A0D7c67Be648C73f76c7468EFFaFc5905eBeee1",
-            token="0xB09DF4787b362388D7Cc411Eb1A628eDB6f845E0",
+            address='0x1c37C0Cf6e6970a1d71A3b0839d8A845C3e3A6b3',
+            token='0x9e36E831C42cC1c2f58580083Af0D2C25E03BcEf',
             token_index=1,
         ),
-        amount_in=4995462,
+        amount_in=3732058.985604203519149262,
         amount_out_min=0,
         is_buy=False))
 

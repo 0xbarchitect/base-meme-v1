@@ -2,20 +2,20 @@ import os
 from decimal import Decimal
 
 class Pair:
-    def __init__(self, token, token_index, address, reserveToken=0, reserveETH=0) -> None:
+    def __init__(self, token, token_index, address, reserve_token=0, reserve_eth=0) -> None:
         self.token = token
         self.token_index = token_index
         self.address = address
-        self.reserveToken = reserveToken
-        self.reserveETH = reserveETH
+        self.reserve_token = reserve_token
+        self.reserve_eth = reserve_eth
 
     def price(self):
-        if self.reserveToken != 0 and self.reserveETH != 0:
-            return Decimal(self.reserveETH) / Decimal(self.reserveToken)
+        if self.reserve_token != 0 and self.reserve_eth != 0:
+            return Decimal(self.reserve_eth) / Decimal(self.reserve_token)
         return 0
 
     def  __str__(self) -> str:
-        return f"Pair {self.address} token {self.token} tokenIndex {self.token_index} reserveToken {self.reserveToken} reserveETH {self.reserveETH}"
+        return f"Pair {self.address} token {self.token} tokenIndex {self.token_index} reserve_token {self.reserve_token} reserve_eth {self.reserve_eth}"
 
 class BlockData:
     def __init__(self, block_number, block_timestamp, base_fee, gas_used, gas_limit, pairs = [], inventory = []) -> None:
@@ -67,9 +67,7 @@ from enum import IntEnum
 
 class ReportDataType(IntEnum):
     BLOCK = 0
-    TRANSACTION = 1
-    PAIR = 2
-    POSITION = 3
+    EXECUTION = 1
 
 class ReportData:
     def __init__(self, type, data) -> None:
@@ -120,6 +118,5 @@ class Position:
         return f"Position {self.pair} amount {self.amount} buy price {self.buy_price} start time {self.start_time}"
     
 class TxStatus(IntEnum):
-    PENDING = 0
+    FAILED = 0
     SUCCESS = 1
-    FAILED = -1
