@@ -50,7 +50,7 @@ glb_inventory = []
 glb_lock = threading.Lock()
 
 # liquidation
-TAKE_PROFIT_PERCENTAGE = 20
+TAKE_PROFIT_PERCENTAGE = 30
 STOP_LOSS_PERCENTAGE = -10
 HOLD_MAX_DURATION_SECONDS = 5*60
 
@@ -245,9 +245,9 @@ async def main():
                     data=report,
                 ))
 
-                if report.tx_status == TxStatus.SUCCESS:
-                    watching_notifier.put(report)
+                watching_notifier.put(report)
 
+                if report.tx_status == TxStatus.SUCCESS:
                     if report.is_buy:
                         with glb_lock:
                             glb_inventory.append(Position(
@@ -256,7 +256,7 @@ async def main():
                                 buy_price=calculate_price(report.amount_out, report.amount_in),
                                 start_time=int(time()),
                             ))
-                            logging.info(f"append {report.pair} to inventory")
+                            logging.info(f"MAIN append {report.pair} to inventory")
                     else:
                         for idx, position in enumerate(glb_inventory):
                             if position.pair.address == report.pair.address:
@@ -264,7 +264,7 @@ async def main():
                                     glb_inventory.pop(idx)
                                     glb_fullfilled = False
                                     glb_liquidated = False
-                                    logging.info(f"remove {position.pair} at index #{idx} from inventory")
+                                    logging.info(f"MAIN remove {position.pair} at index #{idx} from inventory")
                 else:
                     logging.info(f"execution failed, reset lock...")
                     if report.is_buy:

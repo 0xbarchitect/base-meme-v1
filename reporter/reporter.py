@@ -16,7 +16,7 @@ from django.utils.timezone import make_aware
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "admin.settings")
 django.setup()
 
-from console.models import Block, Transaction, WatchingList, Position, PositionTransaction
+from console.models import Block, Transaction, Position, PositionTransaction
 import console.models
 
 class Reporter(metaclass=Singleton):
