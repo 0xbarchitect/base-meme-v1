@@ -4,9 +4,7 @@ from django.utils.html import format_html
 from console.models import Block, Transaction, SwapTokenForNative, SwapEvent
 
 class ConsoleAdminSite(admin.AdminSite):
-    site_header = "Bot Admin"
-    site_title = "Bot Admin"
-    index_title = "Welcome to Bot console"
+    index_title = "Console homepage"
 
 class NoDeletePermissionModelAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):

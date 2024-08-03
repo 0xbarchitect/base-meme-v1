@@ -68,7 +68,7 @@ class BlockWatcher(metaclass=Singleton):
 
     @timer_decorator
     def filter_log_in_block(self, block_number):
-        block_number = 17885237 # TODO
+        #block_number = 17885237 # TODO
 
         def filter_paircreated_log(block_number):
             pair_created_logs = self.factory.events.PairCreated().get_logs(
@@ -81,7 +81,7 @@ class BlockWatcher(metaclass=Singleton):
             )
 
         def filter_sync_log(pair, block_number) -> None:
-            pair_contract = self.w3.eth.contract(address=pair, abi=PAIR_ABI)
+            pair_contract = self.w3.eth.contract(address=pair, abi=self.pair_abi)
             sync_logs = pair_contract.events.Sync().get_logs(
                 fromBlock = block_number,
                 toBlock = block_number,
@@ -104,7 +104,7 @@ class BlockWatcher(metaclass=Singleton):
                 contract = future_to_contract[future]
                 try:
                     result = future.result()
-                    logging.info(f"contract {contract} result {result}")
+                    logging.debug(f"contract {contract} result {result}")
 
                     if result is not None and isinstance(result, FilterLogs):
                         if result.type == FilterLogsType.PAIR_CREATED:

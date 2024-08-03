@@ -6,15 +6,14 @@ from decimal import Decimal
 
 from concurrent.futures import ThreadPoolExecutor
 from web3 import Web3
+from web3.logs import STRICT, IGNORE, DISCARD, WARN
 
 import sys # for testing
 sys.path.append('..')
 
 from helpers import timer_decorator, load_abi
 from executor import BaseExecutor
-from data import ExecutionOrder, Pair, ExecutionAck
-
-SUCCESS_STATUS=1
+from data import ExecutionOrder, Pair, ExecutionAck, TxStatus
 
 class BuySellExecutor(BaseExecutor):
     def __init__(self, http_url, treasury_key, executor_keys, order_receiver, report_sender, \
@@ -59,7 +58,7 @@ class BuySellExecutor(BaseExecutor):
 
                 logging.info(f"{signer} approve token for router {self.router.address} status {tx_receipt['status']}")
 
-                if tx_receipt['status'] != SUCCESS_STATUS:
+                if tx_receipt['status'] != TxStatus.SUCCESS:
                     raise Exception(f"token {pair.token} allowance failed")
 
                 tx = self.router.functions.swapExactTokensForETH(
@@ -76,15 +75,16 @@ class BuySellExecutor(BaseExecutor):
             # send raw tx
             signed = self.w3.eth.account.sign_transaction(tx, priv_key)
             tx_hash = self.w3.eth.send_raw_transaction(signed.rawTransaction)
-            tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
+            logging.info(f"created tx hash {Web3.to_hex(tx_hash)}")
 
+            tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
             logging.info(f"{amount_in} tx hash {Web3.to_hex(tx_hash)} in block #{tx_receipt['blockNumber']} with status {tx_receipt['status']}")
 
             # send acknowledgement
-            if tx_receipt['status'] == SUCCESS_STATUS:
+            if tx_receipt['status'] == TxStatus.SUCCESS:
                 pair_contract = self.w3.eth.contract(address=pair.address, abi=self.pair_abi)
-                swap_logs = pair_contract.events.Swap().process_receipt(tx_receipt)
-                logging.info(f"swap logs {swap_logs[0]}")
+                swap_logs = pair_contract.events.Swap().process_receipt(tx_receipt, errors=DISCARD)
+                logging.debug(f"swap logs {swap_logs[0]}")
 
                 swap_logs = swap_logs[0]
 
@@ -105,9 +105,37 @@ class BuySellExecutor(BaseExecutor):
 
                 logging.info(f"execution ack {ack}")
                 self.report_sender.put(ack)
+            else:
+                ack = ExecutionAck(
+                    lead_block=lead_block,
+                    block_number=tx_receipt['blockNumber'],
+                    tx_hash=Web3.to_hex(tx_hash),
+                    tx_status=tx_receipt['status'],
+                    pair=pair,
+                    amount_in=amount_in,
+                    amount_out=0,
+                    is_buy=is_buy,
+                )
+
+                logging.info(f"execution ack {ack}")
+                self.report_sender.put(ack)
         
         except Exception as e:
             logging.error(f"{amount_in} catch exception {e}")
+
+            ack = ExecutionAck(
+                lead_block=lead_block,
+                block_number=swap_logs['blockNumber'],
+                tx_hash='0x',
+                tx_status=TxStatus.FAILED,
+                pair=pair,
+                amount_in=amount_in,
+                amount_out=amount_out,
+                is_buy=is_buy,
+            )
+
+            logging.info(f"execution ack {ack}")
+            self.report_sender.put(ack)
 
     async def run(self):
         logging.info(f"EXECUTOR listen for order...")
@@ -116,7 +144,7 @@ class BuySellExecutor(BaseExecutor):
         while True:
             execution_data = await self.order_receiver.coro_get()
             counter += 1
-            logging.info(f"receive execution order #{counter} {execution_data.block_number} {execution_data.block_timestamp} {execution_data.amount_in} {execution_data.amount_out_min}")
+            logging.info(f"receive execution order #{counter} {execution_data.block_number} {execution_data.block_timestamp} {execution_data.pair} {execution_data.amount_in} {execution_data.amount_out_min}")
 
             deadline = execution_data.block_timestamp + self.deadline_delay if execution_data.block_timestamp > 0 else self.get_block_timestamp() + self.deadline_delay
             future = executor.submit(self.execute, 
@@ -169,24 +197,24 @@ if __name__ == "__main__":
     #     block_number=0, 
     #     block_timestamp=0, 
     #     pair=Pair(
-    #         token="0xe1D2f11C0a186A3f332967b5135FFC9a4568B15d",
+    #         token="0xb918D173d1651dd1aA2063Dd5BeA8B460f842D11",
     #         token_index=1,
-    #         address="0x6A89E43ef759677d7647bB46BF3890cdC18264BC",
+    #         address="0x85dB80910E46e6AA9D152A0008bF223a6459ccAF",
     #     ) , 
-    #     amount_in=0.0001,
+    #     amount_in=0.00001,
     #     amount_out_min=0,
     #     is_buy=True))
     
-    # order_receiver.put(ExecutionOrder(
-    #     block_number=0, 
-    #     block_timestamp=0, 
-    #     pair=Pair(
-    #         token="0xe1D2f11C0a186A3f332967b5135FFC9a4568B15d",
-    #         token_index=1,
-    #         address="0x6A89E43ef759677d7647bB46BF3890cdC18264BC",
-    #     ),
-    #     amount_in=85154749.72784,
-    #     amount_out_min=0,
-    #     is_buy=False))
+    order_receiver.put(ExecutionOrder(
+        block_number=0, 
+        block_timestamp=0, 
+        pair=Pair(
+            token="0x6CC6b5626075a983737a4bd123A57afE940f7523",
+            token_index=1,
+            address="0x2B5D61aCffC60C2FB32Dde4e4CB372181eEd2F57",
+        ),
+        amount_in=1484.871,
+        amount_out_min=0,
+        is_buy=False))
 
     asyncio.run(executor.run())

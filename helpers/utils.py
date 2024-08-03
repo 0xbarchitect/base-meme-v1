@@ -4,6 +4,7 @@ import json
 from typing import Any, Dict
 import random
 from decimal import Decimal
+import pytz
 
 def load_contract_bin(contract_path: str) -> bytes:
     with open(contract_path, 'r') as readfile:
@@ -55,11 +56,12 @@ def calculate_amount_out(reserveIn, reserveOut, amountIn):
 def calculate_amount_in(reserveIn, reserveOut, amountOut):
     return (reserveIn * reserveOut)/(reserveOut - amountOut) - reserveIn
 
-def calculate_next_block_base_fee(base_fee, gas_used, gas_limit):
-    #base_fee = int(base_fee, base=16)
-    #gas_used = int(gas_used, base=16)
-    #gas_limit = int(gas_limit, base=16)
+def calculate_price(reserveToken, reserveETH):
+    if reserveToken != 0 and reserveETH != 0:
+        return Decimal(reserveETH)/Decimal(reserveToken)
+    return 0
 
+def calculate_next_block_base_fee(base_fee, gas_used, gas_limit):
     target_gas_used = gas_limit / 2
     target_gas_used = 1 if target_gas_used == 0 else target_gas_used
 
@@ -69,3 +71,12 @@ def calculate_next_block_base_fee(base_fee, gas_used, gas_limit):
         new_base_fee = base_fee - ((base_fee * (target_gas_used - gas_used)) / target_gas_used) / 8
 
     return Decimal(int(new_base_fee + random.randint(0, 9)))
+
+def sort_tokens(tokenA, tokenB):
+    return (tokenA, tokenB) if Web3.to_int(hexstr=tokenA) < Web3.to_int(hexstr=tokenB) else (tokenB, tokenA)
+
+def convert_tz_aware(dt_obj):
+    dt_obj.tzinfo = pytz.UTC
+
+def shorten_address(address):
+    return f"{address[0:5]}..{address[len(address)-4:]}"

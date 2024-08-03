@@ -168,9 +168,12 @@ else:
     STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 JAZZMIN_SETTINGS = {
-    "site_logo": "console/img/darenft.png",
+    #"site_logo": "console/img/darenft.png",
+    "site_header": "Phoenix",
+    "site_title": "Phoenix",
+    "site_brand": "Phoenix",
     # Copyright on the footer
-    "copyright": "DareNFT - Alpha Waves PTE. LTD",
+    "copyright": "UncleBa 2024",
     # Field name on user model that contains avatar ImageField/URLField/Charfield or a callable that receives the user
     "user_avatar": None,
 
@@ -199,7 +202,7 @@ JAZZMIN_SETTINGS = {
     # UI Tweaks #
     #############
     # Whether to show the UI customizer on the sidebar
-    "show_ui_builder": True,
+    "show_ui_builder": False,
 
     ###############
     # Change view #

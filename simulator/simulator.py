@@ -4,6 +4,10 @@ import logging
 import time
 from decimal import Decimal
 
+from web3 import Web3
+from uniswap_universal_router_decoder import FunctionRecipient, RouterCodec
+import eth_abi
+
 import sys # for testing
 sys.path.append('..')
 
@@ -13,11 +17,7 @@ from helpers.utils import load_contract_bin, encode_address, encode_uint, func_s
                             decode_address, decode_pair_reserves, decode_int, load_router_contract, \
                             load_abi, calculate_next_block_base_fee
 
-from data import BlockData, SimulationResult
-
-from web3 import Web3
-from uniswap_universal_router_decoder import FunctionRecipient, RouterCodec
-import eth_abi
+from data import BlockData, SimulationResult, Pair
 
 class Simulator:
     @timer_decorator
@@ -46,7 +46,7 @@ class Simulator:
         self.inspector = self.w3.eth.contract(address=inspector, abi=inspector_abi)
         
     @timer_decorator
-    def inspect_token(self, token, amount) -> SimulationResult:
+    def inspect_pair(self, pair: Pair, amount):
         try:
             state_override={
                 self.signer : {
@@ -59,7 +59,7 @@ class Simulator:
                 'to': self.inspector.address,
                 'value': Web3.to_wei(amount, 'ether'),
                 'data': bytes.fromhex(
-                    func_selector('inspect(address)') + encode_address(token)
+                    func_selector('inspect(address)') + encode_address(pair.token)
                 )
             }, 'latest', state_override)
 
@@ -73,7 +73,7 @@ class Simulator:
                   """)
             
             return SimulationResult(
-                token=token,
+                pair=pair,
                 amount_in=round(amount, 7),
                 amount_out=round(Web3.from_wei(result[0][1], 'ether'), 7),
                 slippage=slippage)
@@ -113,5 +113,12 @@ if __name__ == '__main__':
                             INSPECTOR_ABI,
                             BlockData(0,0,25000000000,45059,15000000,[]),)
     
-    result=simulator.inspect_token('0xe1D2f11C0a186A3f332967b5135FFC9a4568B15d', 0.0003)
-    logging.info(f"Simulation result {result}")
+    result=simulator.inspect_pair(Pair(
+        token='0x6CC6b5626075a983737a4bd123A57afE940f7523',
+        token_index=1,
+        address='0xfoo',
+        reserveToken=0,
+        reserveETH=0
+    ), 0.0003)
+
+    logging.info(f"{result}")
