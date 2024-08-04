@@ -6,6 +6,7 @@ import json
 import asyncio
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
+import threading
 
 from web3 import AsyncWeb3, Web3
 from web3.providers import WebsocketProviderV2, HTTPProvider
@@ -14,9 +15,10 @@ import sys # for testing
 sys.path.append('..')
 
 from library import Singleton
-from data import BlockData, Pair, ExecutionAck, FilterLogs, FilterLogsType
+from data import BlockData, Pair, ExecutionAck, FilterLogs, FilterLogsType, ReportData, ReportDataType
 from helpers import async_timer_decorator, load_abi, timer_decorator
 
+glb_lock = threading.Lock()
 
 class BlockWatcher(metaclass=Singleton):
     def __init__(self, https_url, wss_url, block_broker, report_broker, factory_address, factory_abi, weth_address, pair_abi) -> None:
@@ -52,7 +54,7 @@ class BlockWatcher(metaclass=Singleton):
 
                 logging.info(f"block number {block_number} timestamp {block_timestamp}")
 
-                pairs = self.filter_log_in_block(block_number)
+                pairs = self.filter_log_in_block(block_number, block_timestamp)
 
                 logging.debug(f"found pairs {pairs}")
 
@@ -67,7 +69,7 @@ class BlockWatcher(metaclass=Singleton):
                 ))
 
     @timer_decorator
-    def filter_log_in_block(self, block_number):
+    def filter_log_in_block(self, block_number, block_timestamp):
         #block_number = 17918019 # TODO
 
         def filter_paircreated_log(block_number):
@@ -90,6 +92,7 @@ class BlockWatcher(metaclass=Singleton):
                             token=log['args']['token0'] if log['args']['token1'].lower() == self.weth_address.lower() else log['args']['token1'],
                             token_index=0 if log['args']['token1'].lower() == self.weth_address.lower() else 1,
                             address=log['args']['pair'],
+                            created_at=block_timestamp,
                         ))
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
@@ -157,19 +160,37 @@ class BlockWatcher(metaclass=Singleton):
         return pairs
     
     async def listen_report(self):
+        global glb_lock
+
+        def add_pair_to_watchlist(pair):
+            with glb_lock:
+                self.inventory.append(pair)
+                logging.info(f"WATCHER add pair {pair} to watching {self.inventory}")
+
+        def remove_pair_from_watchlist(pair):
+            for idx,pr in enumerate(self.inventory):
+                if pr.address == pair.address:
+                    with glb_lock:
+                        self.inventory.pop(idx)
+                        logging.info(f"WATCHER remove pair {pair} from watching {self.inventory}")
+
         while True:
             report = await self.report_broker.coro_get()
 
             if report is not None and isinstance(report, ExecutionAck) and report.pair is not None:
                 logging.info(f"WATCHER receive report {report}")
-                if report.is_buy and report.pair.address not in [pair.address for pair in self.inventory]:
-                    self.inventory.append(report.pair)
-                    logging.info(f"WATCHER add pair {report.pair} to watching {self.inventory}")
+                if report.is_buy:
+                    if report.pair.address not in [pair.address for pair in self.inventory]:
+                        add_pair_to_watchlist(report.pair)
                 else:
-                    for idx,pair in enumerate(self.inventory):
-                        if pair.address == report.pair.address:
-                            self.inventory.pop(idx)
-                            logging.info(f"WATCHER remove pair {report.pair} from watching {self.inventory}")
+                    remove_pair_from_watchlist(report.pair)
+            elif isinstance(report, ReportData) and report.type == ReportDataType.WATCHLIST_ADDED:
+                if report.data is not None and isinstance(report.data, Pair) and report.data.address not in [pair.address for pair in self.inventory]:
+                    add_pair_to_watchlist(report.data)
+            elif isinstance(report, ReportData) and report.type == ReportDataType.WATCHLIST_REMOVED:
+                if report.data is not None and isinstance(report.data, Pair) and report.data.address in [pair.address for pair in self.inventory]:
+                    remove_pair_from_watchlist(report.data)
+
     
     async def main(self):
         await asyncio.gather(

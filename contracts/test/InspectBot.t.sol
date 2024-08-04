@@ -50,10 +50,26 @@ contract InspectBotTest is Test, HelperContract {
   }
 
   function test_inspect() public {    
-    (uint256 amountIn, uint256 amountReceived) = inspectBot.inspect{value: INSPECT_VALUE}(address(token));
+    (uint256 amountIn, uint256 amountToken, uint256 amountReceived) = inspectBot.inspect{value: INSPECT_VALUE}(address(token));
 
     assertEq(amountIn, INSPECT_VALUE);
+    assertGt(amountToken, 0);
     assertGt(amountReceived, 0);
+  }
+
+  function test_buy() public {
+    uint[] memory amounts = inspectBot.buy{value: INSPECT_VALUE}(address(token), block.timestamp + DEADLINE_BLOCK_DELAY);
+
+    assertEq(amounts[0], INSPECT_VALUE);
+    assertGt(amounts[1], 0);
+  }
+
+  function test_sell() public {
+    uint[] memory amountBuy = inspectBot.buy{value: INSPECT_VALUE}(address(token), block.timestamp + DEADLINE_BLOCK_DELAY);
+    uint[] memory amountSell = inspectBot.sell(address(token), address(this), block.timestamp + DEADLINE_BLOCK_DELAY);
+
+    assertEq(amountBuy[1], amountSell[0]);
+    assertGt(amountSell[1], INSPECT_VALUE*9/10);
   }
 
 }

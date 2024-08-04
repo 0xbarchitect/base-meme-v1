@@ -2,12 +2,13 @@ import os
 from decimal import Decimal
 
 class Pair:
-    def __init__(self, token, token_index, address, reserve_token=0, reserve_eth=0) -> None:
+    def __init__(self, token, token_index, address, reserve_token=0, reserve_eth=0, created_at=0) -> None:
         self.token = token
         self.token_index = token_index
         self.address = address
         self.reserve_token = reserve_token
         self.reserve_eth = reserve_eth
+        self.created_at = created_at
 
     def price(self):
         if self.reserve_token != 0 and self.reserve_eth != 0:
@@ -15,7 +16,7 @@ class Pair:
         return 0
 
     def  __str__(self) -> str:
-        return f"Pair {self.address} token {self.token} tokenIndex {self.token_index} reserve_token {self.reserve_token} reserve_eth {self.reserve_eth}"
+        return f"Pair {self.address} token {self.token} tokenIndex {self.token_index} reserve_token {self.reserve_token} reserve_eth {self.reserve_eth} createdAt {self.created_at}"
 
 class BlockData:
     def __init__(self, block_number, block_timestamp, base_fee, gas_used, gas_limit, pairs = [], inventory = []) -> None:
@@ -68,6 +69,8 @@ from enum import IntEnum
 class ReportDataType(IntEnum):
     BLOCK = 0
     EXECUTION = 1
+    WATCHLIST_ADDED = 2
+    WATCHLIST_REMOVED = 3
 
 class ReportData:
     def __init__(self, type, data) -> None:
@@ -86,14 +89,15 @@ class W3Account:
         self.nonce = nonce
 
 class SimulationResult:
-    def __init__(self, pair, amount_in, amount_out, slippage) -> None:
+    def __init__(self, pair, amount_in, amount_out, slippage, amount_token=0) -> None:
         self.pair = pair
         self.amount_in = amount_in
         self.amount_out = amount_out
         self.slippage = slippage
+        self.amount_token = amount_token
 
     def __str__(self) -> str:
-        return f"Simulation result {self.pair} slippage {self.slippage} amount in {self.amount_in} amount out {self.amount_out}"
+        return f"Simulation result {self.pair} slippage {self.slippage} amountIn {self.amount_in} amountOut {self.amount_out} amountToken {self.amount_token}"
     
 class FilterLogsType(IntEnum):
     PAIR_CREATED = 0

@@ -29,12 +29,12 @@ abstract contract AbstractBot is Ownable {
     return IUniswapV2Factory(_factory).getPair(erc20, _weth);
   }
 
-  function _swapNativeForToken(address erc20, uint256 amountETHIn, uint256 amountTokenOut, address to, uint256 deadline) internal {
+  function _swapNativeForToken(address erc20, uint256 amountETHIn, uint256 amountTokenOut, address to, uint256 deadline) internal returns (uint[] memory amounts) {
     address[] memory path = new address[](2);
     path[0] = _weth;
     path[1] = erc20;
 
-    IUniswapV2Router02(_router).swapExactETHForTokens{value: amountETHIn}(
+    return IUniswapV2Router02(_router).swapExactETHForTokens{value: amountETHIn}(
       amountTokenOut,
       path,
       to,
@@ -42,13 +42,12 @@ abstract contract AbstractBot is Ownable {
     );
   }
 
-  function _swapTokenForNative(address erc20, uint256 amountTokenIn, uint256 amountETHOutMin, address payable to, uint256 deadline) internal {
-
+  function _swapTokenForNative(address erc20, uint256 amountTokenIn, uint256 amountETHOutMin, address payable to, uint256 deadline) internal returns (uint[] memory amounts) {
     address[] memory path = new address[](2);
     path[0] = erc20;
-    path[1] = _weth;    
+    path[1] = _weth;
 
-    IUniswapV2Router02(_router).swapExactTokensForETH(
+    return IUniswapV2Router02(_router).swapExactTokensForETH(
       amountTokenIn,
       amountETHOutMin,
       path,
