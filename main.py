@@ -21,38 +21,40 @@ from helpers import load_abi, timer_decorator, calculate_price, calculate_next_b
 
 from data import ExecutionOrder, SimulationResult, ExecutionAck, Position, TxStatus, ReportData, ReportDataType
 
+# global variables
+glb_fullfilled = False # TODO
+glb_liquidated = False
+glb_watchlist = []
+glb_inventory = []
+glb_lock = threading.Lock()
+
 # load config
 ERC20_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/ERC20.abi.json")
 PAIR_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniV2Pair.abi.json")
 WETH_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/WETH.abi.json")
 ROUTER_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniRouter.abi.json")
 FACTORY_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniV2Factory.abi.json")
-INSPECTOR_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/InspectBot.abi.json")
+BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/InspectBot.abi.json")
 
 RESERVE_ETH_MIN_THRESHOLD = 1
 SIMULATION_AMOUNT = 0.001
 SLIPPAGE_MIN_THRESHOLD = 30 # in basis point
-SLIPPAGE_MAX_THRESHOLD = 60
-BUY_AMOUNT = 0.0001
+SLIPPAGE_MAX_THRESHOLD = 100
+BUY_AMOUNT = 0.000001
 
 # gas
-GAS_LIMIT = 200*10**3
+GAS_LIMIT = 250*10**3
 MAX_FEE_PER_GAS = 10**9
 MAX_PRIORITY_FEE_PER_GAS = 10**9
 GAS_COST = 300*100**3
 
 DEADLINE_DELAY_SECONDS = 30
 
-# global variables
-glb_fullfilled = False # TODO
-glb_liquidated = False
-glb_inventory = []
-glb_lock = threading.Lock()
-
 # liquidation
 TAKE_PROFIT_PERCENTAGE = 30
 STOP_LOSS_PERCENTAGE = -10
 HOLD_MAX_DURATION_SECONDS = 5*60
+WATCHLIST_DURATION_SECONDS = 60
 
 async def watching_process(watching_broker, watching_notifier):
     block_watcher = BlockWatcher(os.environ.get('HTTPS_URL'),
@@ -66,11 +68,12 @@ async def watching_process(watching_broker, watching_notifier):
                                 )
     await block_watcher.main()
 
-async def strategy(watching_broker, execution_broker, report_broker):
+async def strategy(watching_broker, execution_broker, report_broker, watching_notifier,):
     global glb_fullfilled
     global glb_liquidated
     global glb_lock
     global glb_inventory
+    global glb_watchlist
 
     def calculate_pnl_percentage(position, pair, base_fee):
         #numerator = Decimal(position.amount)*(Decimal(position.buy_price) - calculate_price(pair.reserve_token, pair.reserve_eth)) - GAS_COST*base_fee/10**9
@@ -120,28 +123,57 @@ async def strategy(watching_broker, execution_broker, report_broker):
                                     amount_out_min=0,
                                     is_buy=False,
                                 ))
+        elif len(glb_watchlist)>0:
+            if not glb_fullfilled:
+                for idx,pair in enumerate(glb_watchlist):
+                    if block_data.block_timestamp - pair.created_at > WATCHLIST_DURATION_SECONDS:
+                        logging.info(f"MAIN pair {pair} waiting time elapsed {WATCHLIST_DURATION_SECONDS}")
+
+                        with glb_lock:
+                            glb_watchlist.pop(idx)
+                            logging.warning(f"remove pair {pair} from watching list at index #{idx}")
+
+                        simulation_result = simulate([pair])
+                        logging.info(f"MAIN simulation result {simulation_result}")
+
+                        if simulation_result is not None and isinstance(simulation_result, SimulationResult):
+                            with glb_lock:
+                                glb_fullfilled = True
+                                # send execution order
+                                logging.warning(f"MAIN send buy order {simulation_result.pair} amount {BUY_AMOUNT}")
+                                execution_broker.put(ExecutionOrder(
+                                    block_number=block_data.block_number,
+                                    block_timestamp=block_data.block_timestamp,
+                                    pair=simulation_result.pair,
+                                    amount_in=BUY_AMOUNT,
+                                    amount_out_min=0,
+                                    is_buy=True,
+                                ))
+                        else:
+                            # notify watcher
+                            watching_notifier.put(ReportData(
+                                type=ReportDataType.WATCHLIST_REMOVED,
+                                data=simulation_result.pair,
+                            ))
 
         elif len(block_data.pairs)>0:
-            if not glb_fullfilled:
-                simulation_result = simulate(block_data)
+            if len(glb_watchlist)==0:
+                simulation_result = simulate(block_data.pairs)
 
                 logging.info(f"SIMULATION result {simulation_result}")
 
                 if simulation_result is not None and isinstance(simulation_result, SimulationResult):
                     with glb_lock:
-                        glb_fullfilled = True
+                        # append to watchlist
+                        glb_watchlist.append(simulation_result.pair)
 
-                    logging.warning(f"send buy order {simulation_result.pair} amount {BUY_AMOUNT}")
-
-                    execution_broker.put(ExecutionOrder(
-                        block_number=block_data.block_number,
-                        block_timestamp=block_data.block_timestamp,
-                        pair=simulation_result.pair,
-                        amount_in=BUY_AMOUNT,
-                        amount_out_min=0,
-                        is_buy=True,
+                        logging.info(f"MAIN add pair {simulation_result.pair} to watchlist {glb_watchlist}")
+                    
+                    # notify watcher
+                    watching_notifier.put(ReportData(
+                        type=ReportDataType.WATCHLIST_ADDED,
+                        data=simulation_result.pair,
                     ))
-
                 else:
                     logging.info(f"simulation result is not qualified")
             else:
@@ -149,7 +181,7 @@ async def strategy(watching_broker, execution_broker, report_broker):
 
 
 @timer_decorator
-def simulate(block_data) -> SimulationResult:
+def simulate(pairs) -> SimulationResult:
     def inspect_pair(pair) -> SimulationResult:
         if pair.reserve_eth < RESERVE_ETH_MIN_THRESHOLD:
             return None
@@ -162,8 +194,7 @@ def simulate(block_data) -> SimulationResult:
             inspector=os.environ.get('INSPECTOR_BOT'),
             pair_abi=PAIR_ABI,
             weth_abi=WETH_ABI,
-            inspector_abi=INSPECTOR_ABI,
-            current_block=block_data,
+            inspector_abi=BOT_ABI,
         )
                                 
         return simulator.inspect_pair(pair, SIMULATION_AMOUNT)
@@ -171,10 +202,6 @@ def simulate(block_data) -> SimulationResult:
     best_option = None
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        pairs = block_data.pairs
-        if len(block_data.pairs) > 5:
-            pairs = block_data.pairs[:5]
-
         future_to_token = {executor.submit(inspect_pair, pair): pair.token for pair in pairs}
         for future in concurrent.futures.as_completed(future_to_token):
             token = future_to_token[future]
@@ -208,6 +235,8 @@ def execution_process(execution_broker, report_broker):
         router_abi=ROUTER_ABI,
         erc20_abi=ERC20_ABI,
         pair_abi=PAIR_ABI,
+        bot=os.environ.get('INSPECTOR_BOT'),
+        bot_abi=BOT_ABI,
     )
 
     asyncio.run(executor.run())
@@ -281,7 +310,7 @@ async def main():
 
     #await strategy(watching_broker, execution_broker)
     await asyncio.gather(watching_process(watching_broker, watching_notifier),
-                         strategy(watching_broker, execution_broker, report_broker),
+                         strategy(watching_broker, execution_broker, report_broker, watching_notifier,),
                          handle_execution_report(),
                          reporter.run(),
                          )

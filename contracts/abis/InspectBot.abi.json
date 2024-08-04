@@ -69,6 +69,30 @@
     },
     {
       "type": "function",
+      "name": "buy",
+      "inputs": [
+        {
+          "name": "erc20",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "deadline",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "amounts",
+          "type": "uint256[]",
+          "internalType": "uint256[]"
+        }
+      ],
+      "stateMutability": "payable"
+    },
+    {
+      "type": "function",
       "name": "inspect",
       "inputs": [
         {
@@ -79,7 +103,12 @@
       ],
       "outputs": [
         {
-          "name": "valueIn",
+          "name": "amountIn",
+          "type": "uint256",
+          "internalType": "uint256"
+        },
+        {
+          "name": "amountToken",
           "type": "uint256",
           "internalType": "uint256"
         },
@@ -109,6 +138,35 @@
       "name": "renounceOwnership",
       "inputs": [],
       "outputs": [],
+      "stateMutability": "nonpayable"
+    },
+    {
+      "type": "function",
+      "name": "sell",
+      "inputs": [
+        {
+          "name": "erc20",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "to",
+          "type": "address",
+          "internalType": "address"
+        },
+        {
+          "name": "deadline",
+          "type": "uint256",
+          "internalType": "uint256"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "amounts",
+          "type": "uint256[]",
+          "internalType": "uint256[]"
+        }
+      ],
       "stateMutability": "nonpayable"
     },
     {
@@ -143,4 +201,4 @@
       ],
       "anonymous": false
     }
-  ]
+]

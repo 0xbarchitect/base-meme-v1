@@ -5,6 +5,7 @@ from typing import Any, Dict
 import random
 from decimal import Decimal
 import pytz
+import eth_utils
 
 def load_contract_bin(contract_path: str) -> bytes:
     with open(contract_path, 'r') as readfile:
@@ -80,3 +81,15 @@ def convert_tz_aware(dt_obj):
 
 def shorten_address(address):
     return f"{address[0:5]}..{address[len(address)-4:]}"
+
+def calculate_balance_storage_index(address, index):
+    return Web3.keccak(
+        hexstr=(
+            eth_utils.remove_0x_prefix(address).rjust(64, '0')
+            +
+            eth_utils.remove_0x_prefix(hex(index)).rjust(64,'0')
+        )
+    )
+
+def rpad_int(amount):
+    return "0x" + eth_utils.remove_0x_prefix(hex(amount)).rjust(64,'0')

@@ -18,23 +18,39 @@ from data import ExecutionOrder, Pair, ExecutionAck, TxStatus
 class BuySellExecutor(BaseExecutor):
     def __init__(self, http_url, treasury_key, executor_keys, order_receiver, report_sender, \
                 gas_limit, max_fee_per_gas, max_priority_fee_per_gas, deadline_delay, \
-                weth, router, router_abi, erc20_abi, pair_abi) -> None:
+                weth, router, router_abi, erc20_abi, pair_abi, bot = None, bot_abi = None) -> None:
         super().__init__(http_url, treasury_key, executor_keys, order_receiver, report_sender, gas_limit, max_fee_per_gas, max_priority_fee_per_gas, deadline_delay)
         self.weth = weth
         self.router = self.w3.eth.contract(address=router, abi=router_abi)
         self.erc20_abi = erc20_abi
         self.pair_abi = pair_abi
 
+        self.bot = None
+        if bot is not None and bot_abi is not None:
+            self.bot = self.w3.eth.contract(address=bot, abi=bot_abi)
+
     @timer_decorator
     def execute(self, account_id, lead_block, is_buy, pair, amount_in, amount_out_min, deadline):
-        try:
-            logging.info(f"account address {self.accounts[account_id].w3_account.address} in {amount_in} outMin {amount_out_min} deadline {deadline} isBuy {is_buy}")
+        def prepare_tx_bot(signer, nonce):
+            tx = None            
+            if is_buy:
+                tx = self.bot.functions.buy(pair.token, deadline).build_transaction({
+                    "from": signer,
+                    "nonce": nonce,
+                    "gas": self.gas_limit,
+                    "value": Web3.to_wei(amount_in, 'ether'),
+                })
+            else:
+                tx = self.bot.functions.sell(pair.token, signer, deadline).build_transaction({
+                    "from": signer,
+                    "nonce": nonce,
+                    "gas": self.gas_limit,
+                })
 
-            signer = self.accounts[account_id].w3_account.address
-            priv_key = self.accounts[account_id].private_key
+            return tx
 
-            # get nonce onchain
-            nonce = self.w3.eth.get_transaction_count(signer)
+        def prepare_tx_eoa(signer, nonce, priv_key):
+            tx = None
 
             if is_buy:
                 tx = self.router.functions.swapExactETHForTokens(
@@ -71,6 +87,25 @@ class BuySellExecutor(BaseExecutor):
                         "nonce": nonce+1,
                         "gas": self.gas_limit,
                         })
+                
+            return tx
+
+        try:
+            logging.info(f"account address {self.accounts[account_id].w3_account.address} in {amount_in} outMin {amount_out_min} deadline {deadline} isBuy {is_buy}")
+
+            signer = self.accounts[account_id].w3_account.address
+            priv_key = self.accounts[account_id].private_key
+
+            # get nonce onchain
+            nonce = self.w3.eth.get_transaction_count(signer)
+
+            if self.bot is not None:
+                tx = prepare_tx_bot(signer, nonce)
+            else:
+                tx = prepare_tx_eoa(signer, nonce, priv_key)
+            
+            if tx is None:
+                raise Exception(f"create tx failed")
             
             # send raw tx
             signed = self.w3.eth.account.sign_transaction(tx, priv_key)
@@ -80,7 +115,7 @@ class BuySellExecutor(BaseExecutor):
             tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
 
             logging.debug(f"tx receipt {tx_receipt}")
-            logging.debug(f"{amount_in} tx hash {Web3.to_hex(tx_hash)} in block #{tx_receipt['blockNumber']} with status {tx_receipt['status']}")
+            logging.info(f"{amount_in} tx hash {Web3.to_hex(tx_hash)} in block #{tx_receipt['blockNumber']} with status {tx_receipt['status']}")
 
             # send acknowledgement
             if tx_receipt['status'] == TxStatus.SUCCESS:
@@ -107,37 +142,24 @@ class BuySellExecutor(BaseExecutor):
 
                 logging.info(f"execution ack {ack}")
                 self.report_sender.put(ack)
-            else:
-                ack = ExecutionAck(
-                    lead_block=lead_block,
-                    block_number=tx_receipt['blockNumber'],
-                    tx_hash=Web3.to_hex(tx_hash),
-                    tx_status=tx_receipt['status'],
-                    pair=pair,
-                    amount_in=amount_in,
-                    amount_out=0,
-                    is_buy=is_buy,
-                )
 
-                logging.info(f"execution ack {ack}")
-                self.report_sender.put(ack)
-        
+                return
         except Exception as e:
             logging.error(f"{amount_in} catch exception {e}")
 
-            ack = ExecutionAck(
-                lead_block=lead_block,
-                block_number=tx_receipt['blockNumber'],
-                tx_hash='0x',
-                tx_status=TxStatus.FAILED,
-                pair=pair,
-                amount_in=amount_in,
-                amount_out=amount_out,
-                is_buy=is_buy,
-            )
+        ack = ExecutionAck(
+            lead_block=lead_block,
+            block_number=lead_block,
+            tx_hash='0x',
+            tx_status=TxStatus.FAILED,
+            pair=pair,
+            amount_in=amount_in,
+            amount_out=0,
+            is_buy=is_buy,
+        )
 
-            logging.info(f"execution ack {ack}")
-            self.report_sender.put(ack)
+        logging.info(f"execution ack {ack}")
+        self.report_sender.put(ack)
 
     async def run(self):
         logging.info(f"EXECUTOR listen for order...")
@@ -149,6 +171,7 @@ class BuySellExecutor(BaseExecutor):
             logging.info(f"receive execution order #{counter} {execution_data.block_number} {execution_data.block_timestamp} {execution_data.pair} {execution_data.amount_in} {execution_data.amount_out_min}")
 
             deadline = execution_data.block_timestamp + self.deadline_delay if execution_data.block_timestamp > 0 else self.get_block_timestamp() + self.deadline_delay
+            
             future = executor.submit(self.execute, 
                                      (counter - 1) % len(self.accounts),
                                      execution_data.block_number, 
@@ -168,6 +191,7 @@ if __name__ == "__main__":
     WETH_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/WETH.abi.json")
     ERC20_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/ERC20.abi.json")
     PAIR_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/UniV2Pair.abi.json")
+    BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/InspectBot.abi.json")
 
     import aioprocessing
 
@@ -180,7 +204,7 @@ if __name__ == "__main__":
         executor_keys=os.environ.get('EXECUTION_KEYS').split(','),
         order_receiver=order_receiver,
         report_sender=report_sender,
-        gas_limit=200*10**3,
+        gas_limit=250*10**3,
         max_fee_per_gas=0.01*10**9,
         max_priority_fee_per_gas=25*10**9,
         deadline_delay=30,
@@ -189,20 +213,20 @@ if __name__ == "__main__":
         router_abi=ROUTER_ABI,
         erc20_abi=ERC20_ABI,
         pair_abi=PAIR_ABI,
+        bot=os.environ.get('INSPECTOR_BOT'),
+        bot_abi=BOT_ABI,
     )
-
-    #print(f"block timestamp {executor.get_block_timestamp()}")
 
     # queue jobs
     # order_receiver.put(ExecutionOrder(
     #     block_number=0, 
     #     block_timestamp=0, 
     #     pair=Pair(
-    #         address='0x8b0cEfbAF872C8DF00CdAB4c1D06481030ee8866',
-    #         token='0xa4DC5fCCC203A98537c26F060Bd69dD87Ce7BC3B',
-    #         token_index=1,
+    #         address='0x2Fa2F254757f4144b9E7d675dcF8c87D9a13fa04',
+    #         token='0x129ff6eCaE004Df60765Ce3a3B89733E5341CB28',
+    #         token_index=0,
     #     ) , 
-    #     amount_in=0.00003,
+    #     amount_in=0.00001,
     #     amount_out_min=0,
     #     is_buy=True))
     
@@ -210,11 +234,11 @@ if __name__ == "__main__":
         block_number=0, 
         block_timestamp=0, 
         pair=Pair(
-            address='0x1c37C0Cf6e6970a1d71A3b0839d8A845C3e3A6b3',
-            token='0x9e36E831C42cC1c2f58580083Af0D2C25E03BcEf',
+            address='0x7D67757Ee97cFc4d95Ed6fe2E416c8687f18215a',
+            token='0xdc35c028620ac8C8ad05c75CD34Eb1E874161720',
             token_index=1,
         ),
-        amount_in=3732058.985604203519149262,
+        amount_in=0,
         amount_out_min=0,
         is_buy=False))
 

@@ -16,7 +16,7 @@ $ forge test
 ### Fork test
 
 ```shell
-$ forge test --fork-url https://api.avax-test.network/ext/bc/C/rpc -vvvv
+$ forge test --fork-url <rpc-url> -vvvv
 ```
 
 ### Format
@@ -41,7 +41,12 @@ $ anvil
 
 - Deploy LPBot
 ```shell
-$ forge create --rpc-url https://api.avax-test.network/ext/bc/C/rpc --private-key <private-key> --etherscan-api-key <etherscan-api-key> --verify src/BootstrapBot.sol:BootstrapBot --constructor-args <joeroutev2-address> <lbrouter-address> <joefactory-address> <avex-token-address> <wavax-token-address>
+$ forge create \
+--rpc-url <rpc-url> \
+--private-key <private-key> \
+--etherscan-api-key <etherscan-api-key> --verify \
+src/BootstrapBot.sol:BootstrapBot \
+--constructor-args <joeroutev2-address> <lbrouter-address> <joefactory-address> <avex-token-address> <wavax-token-address>
 ```
 
 ### Cast
