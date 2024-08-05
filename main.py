@@ -178,7 +178,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                             # notify watcher
                             watching_notifier.put(ReportData(
                                 type=ReportDataType.WATCHLIST_REMOVED,
-                                data=simulation_result.pair,
+                                data=pair,
                             ))
 
         elif len(block_data.pairs)>0:
