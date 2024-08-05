@@ -112,14 +112,15 @@ class FilterLogs:
         return f"FilterLogs type {self.type} data {self.data}"
     
 class Position:
-    def __init__(self, pair, amount, buy_price, start_time) -> None:
+    def __init__(self, pair, amount, buy_price, start_time, pnl=0) -> None:
         self.pair = pair
         self.amount = amount
         self.buy_price = buy_price
         self.start_time = start_time
+        self.pnl = pnl
 
     def __str__(self) -> str:
-        return f"Position {self.pair} amount {self.amount} buy price {self.buy_price} start time {self.start_time}"
+        return f"Position {self.pair} amount {self.amount} buyPrice {self.buy_price} startTime {self.start_time} pnl {self.pnl}"
     
 class TxStatus(IntEnum):
     FAILED = 0

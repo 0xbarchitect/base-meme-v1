@@ -24,7 +24,7 @@ class Reporter(metaclass=Singleton):
         self.receiver = receiver
 
     async def run(self):
-        logging.info(f"listen for report...")
+        logging.info(f"REPORTER listen for report...")
         while True:
             report = await self.receiver.coro_get()
             logging.info(f"reporter receive {report}")
@@ -43,9 +43,9 @@ class Reporter(metaclass=Singleton):
                     gas_limit=report.data.gas_limit,
                 )
                 await block.asave()
-                logging.info(f"block saved successfully {block.id}")
+                logging.debug(f"block saved successfully {block.id}")
             else:
-                logging.info(f"block found id #{block.id}")
+                logging.debug(f"block found id #{block.id}")
 
             for pair in report.data.pairs:
                 pair_ins = await console.models.Pair.objects.filter(address=pair.address).afirst()
@@ -59,9 +59,9 @@ class Reporter(metaclass=Singleton):
                         deployed_at=make_aware(datetime.fromtimestamp(report.data.block_timestamp)),
                     )
                     await pair_ins.asave()
-                    logging.info(f"pair saved with id #{pair_ins.id}")
+                    logging.debug(f"pair saved with id #{pair_ins.id}")
                 else:
-                    logging.info(f"pair exists id #{pair_ins.id}")
+                    logging.debug(f"pair exists id #{pair_ins.id}")
 
         async def save_position(execution_ack):
             block = await Block.objects.filter(block_number=execution_ack.block_number).afirst()
@@ -70,9 +70,9 @@ class Reporter(metaclass=Singleton):
                     block_number=execution_ack.block_number,
                 )
                 await block.asave()
-                logging.info(f"block saved successfully {block.id}")
+                logging.debug(f"block saved successfully {block.id}")
             else:
-                logging.info(f"block found id #{block.id}")
+                logging.debug(f"block found id #{block.id}")
 
             tx = await Transaction.objects.filter(tx_hash=execution_ack.tx_hash).afirst()
             if tx is None:
@@ -82,9 +82,9 @@ class Reporter(metaclass=Singleton):
                     status=execution_ack.tx_status,
                 )
                 await tx.asave()
-                logging.info(f"tx saved id #{tx.id}")
+                logging.debug(f"tx saved id #{tx.id}")
             else:
-                logging.info(f"tx exists id #{tx.id}")
+                logging.debug(f"tx exists id #{tx.id}")
 
             pair = await console.models.Pair.objects.filter(address=execution_ack.pair.address,token=execution_ack.pair.token).afirst()
             if pair is None:
@@ -93,9 +93,9 @@ class Reporter(metaclass=Singleton):
                     token=execution_ack.pair.token,
                 )
                 await pair.asave()
-                logging.info(f"pair saved id #{pair.id}")
+                logging.debug(f"pair saved id #{pair.id}")
             else:
-                logging.info(f"pair exists id #{pair.id}")
+                logging.debug(f"pair exists id #{pair.id}")
 
             position = await Position.objects.filter(pair__address=execution_ack.pair.address, is_deleted=0).afirst()
             if position is None:
@@ -110,9 +110,9 @@ class Reporter(metaclass=Singleton):
                     pnl=0,
                 )
                 await position.asave()
-                logging.info(f"position saved id #{position.id}")
+                logging.debug(f"position saved id #{position.id}")
             else:
-                logging.info(f"position exists id #{position.id}, update...")
+                logging.debug(f"position exists id #{position.id}, update...")
 
                 if not execution_ack.is_buy:
                     position.is_liquidated=1
@@ -131,9 +131,9 @@ class Reporter(metaclass=Singleton):
                     is_buy=execution_ack.is_buy,
                 )
                 await position_tx.asave()
-                logging.info(f"position tx saved id #{position_tx.id}")
+                logging.debug(f"position tx saved id #{position_tx.id}")
             else:
-                logging.info(f"position tx exists id #{position_tx.id}")
+                logging.debug(f"position tx exists id #{position_tx.id}")
 
         try:
             if report.type == ReportDataType.BLOCK:

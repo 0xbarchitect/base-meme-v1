@@ -118,6 +118,7 @@ class BuySellExecutor(BaseExecutor):
             logging.info(f"{amount_in} tx hash {Web3.to_hex(tx_hash)} in block #{tx_receipt['blockNumber']} with status {tx_receipt['status']}")
 
             # send acknowledgement
+            amount_out = 0
             if tx_receipt['status'] == TxStatus.SUCCESS:
                 pair_contract = self.w3.eth.contract(address=pair.address, abi=self.pair_abi)
                 swap_logs = pair_contract.events.Swap().process_receipt(tx_receipt, errors=DISCARD)
@@ -129,23 +130,23 @@ class BuySellExecutor(BaseExecutor):
                 if not is_buy:
                     amount_out = Web3.from_wei(swap_logs['args']['amount1Out'], 'ether') if pair.token_index==0 else Web3.from_wei(swap_logs['args']['amount0Out'], 'ether')
 
-                ack = ExecutionAck(
-                    lead_block=lead_block,
-                    block_number=swap_logs['blockNumber'],
-                    tx_hash=Web3.to_hex(tx_hash),
-                    tx_status=tx_receipt['status'],
-                    pair=pair,
-                    amount_in=amount_in,
-                    amount_out=amount_out,
-                    is_buy=is_buy,
-                )
+            ack = ExecutionAck(
+                lead_block=lead_block,
+                block_number=tx_receipt['blockNumber'],
+                tx_hash=Web3.to_hex(tx_hash),
+                tx_status=tx_receipt['status'],
+                pair=pair,
+                amount_in=amount_in,
+                amount_out=amount_out,
+                is_buy=is_buy,
+            )
 
-                logging.info(f"execution ack {ack}")
-                self.report_sender.put(ack)
+            logging.info(f"execution ack {ack}")
+            self.report_sender.put(ack)
 
-                return
+            return
         except Exception as e:
-            logging.error(f"{amount_in} catch exception {e}")
+            logging.error(f"execute order {pair} amountIn {amount_in} isBuy {is_buy} catch exception {e}")
 
         ack = ExecutionAck(
             lead_block=lead_block,
@@ -158,7 +159,7 @@ class BuySellExecutor(BaseExecutor):
             is_buy=is_buy,
         )
 
-        logging.info(f"execution ack {ack}")
+        logging.info(f"failed execution ack {ack}")
         self.report_sender.put(ack)
 
     async def run(self):
@@ -234,8 +235,8 @@ if __name__ == "__main__":
         block_number=0, 
         block_timestamp=0, 
         pair=Pair(
-            address='0x7D67757Ee97cFc4d95Ed6fe2E416c8687f18215a',
-            token='0xdc35c028620ac8C8ad05c75CD34Eb1E874161720',
+            address='0x46Cb90f2B119bb0bd980Fb681c04eEf54bEd1D21',
+            token='0x8F06904375099b1C0b7dC7B7a093b131447aCb18',
             token_index=1,
         ),
         amount_in=0,

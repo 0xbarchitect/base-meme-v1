@@ -52,7 +52,7 @@ class BlockWatcher(metaclass=Singleton):
                 gas_used = Web3.to_int(hexstr=response['result']['gasUsed'])
                 gas_limit = Web3.to_int(hexstr=response['result']['gasLimit'])
 
-                logging.info(f"block number {block_number} timestamp {block_timestamp}")
+                logging.debug(f"block number {block_number} timestamp {block_timestamp}")
 
                 pairs = self.filter_log_in_block(block_number, block_timestamp)
 

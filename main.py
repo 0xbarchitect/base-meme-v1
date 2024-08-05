@@ -8,6 +8,7 @@ import os
 import logging
 from decimal import Decimal
 from time import time
+from datetime import datetime
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -26,6 +27,8 @@ glb_fullfilled = False # TODO
 glb_liquidated = False
 glb_watchlist = []
 glb_inventory = []
+glb_daily_pnl = (datetime.now(), 0)
+glb_auto_run = True # TODO
 glb_lock = threading.Lock()
 
 # load config
@@ -36,11 +39,11 @@ ROUTER_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniRouter.abi
 FACTORY_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniV2Factory.abi.json")
 BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/InspectBot.abi.json")
 
-RESERVE_ETH_MIN_THRESHOLD = 1
+RESERVE_ETH_MIN_THRESHOLD = 5
 SIMULATION_AMOUNT = 0.001
 SLIPPAGE_MIN_THRESHOLD = 30 # in basis point
 SLIPPAGE_MAX_THRESHOLD = 100
-BUY_AMOUNT = 0.000001
+BUY_AMOUNT = 0.0001
 
 # gas
 GAS_LIMIT = 250*10**3
@@ -51,10 +54,11 @@ GAS_COST = 300*100**3
 DEADLINE_DELAY_SECONDS = 30
 
 # liquidation
-TAKE_PROFIT_PERCENTAGE = 30
+TAKE_PROFIT_PERCENTAGE = 50
 STOP_LOSS_PERCENTAGE = -10
 HOLD_MAX_DURATION_SECONDS = 5*60
-WATCHLIST_DURATION_SECONDS = 60
+WATCHLIST_DURATION_SECONDS = 5*60
+HARD_STOP_PNL_THRESHOLD = -150
 
 async def watching_process(watching_broker, watching_notifier):
     block_watcher = BlockWatcher(os.environ.get('HTTPS_URL'),
@@ -74,9 +78,12 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
     global glb_lock
     global glb_inventory
     global glb_watchlist
+    global glb_daily_pnl
+    global glb_auto_run
 
     def calculate_pnl_percentage(position, pair, base_fee):
         #numerator = Decimal(position.amount)*(Decimal(position.buy_price) - calculate_price(pair.reserve_token, pair.reserve_eth)) - GAS_COST*base_fee/10**9
+        
         numerator = Decimal(position.amount)*calculate_price(pair.reserve_token, pair.reserve_eth) - Decimal(BUY_AMOUNT)
         denominator = Decimal(BUY_AMOUNT)
         return (numerator / denominator) * Decimal(100)
@@ -85,12 +92,29 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
         block_data = await watching_broker.coro_get()
 
         logging.info(f"STRATEGY received block {block_data}")
-
         # send block report
         report_broker.put(ReportData(
             type=ReportDataType.BLOCK,
             data=block_data,
         ))
+
+        # hardstop based on pnl
+        logging.info(f"[{glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}] PnL {glb_daily_pnl[1]}")
+
+        if glb_daily_pnl[1] < HARD_STOP_PNL_THRESHOLD:
+            with glb_lock:
+                glb_auto_run = False
+                logging.warning(f"MAIN stop auto run...")
+
+        if not glb_auto_run:
+            logging.info(f"MAIN auto-run is disabled")
+            continue
+
+        if glb_daily_pnl[0].strftime('%Y-%m-%d %H') != datetime.now().strftime('%Y-%m-%d %H'):
+            with glb_lock:
+                glb_daily_pnl = (datetime.now(), 0)
+                logging.info(f"MAIN reset daily pnl at time {glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}")
+
 
         if len(glb_inventory)>0:
             if not glb_liquidated:
@@ -98,23 +122,24 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                     is_liquidated = False
                     for pair in block_data.inventory:
                         if position.pair.address == pair.address:
-                            pnl = calculate_pnl_percentage(position, pair, calculate_next_block_base_fee(block_data.base_fee, block_data.gas_used, block_data.gas_limit))
-                            logging.info(f"Pair {position.pair} PnL {pnl}")
+                            position.pnl = calculate_pnl_percentage(position, pair, calculate_next_block_base_fee(block_data.base_fee, block_data.gas_used, block_data.gas_limit))
+                            logging.info(f"{position} update PnL {position.pnl}")
                             
-                            if pnl > TAKE_PROFIT_PERCENTAGE or pnl < STOP_LOSS_PERCENTAGE:
-                                logging.warning(f"take profit or stop loss caused by pnl {pnl}")
+                            if position.pnl > TAKE_PROFIT_PERCENTAGE or position.pnl < STOP_LOSS_PERCENTAGE:
+                                logging.warning(f"{position} take profit or stop loss caused by pnl {position.pnl}")
                                 is_liquidated = True
                                 break
 
                     if not is_liquidated and block_data.block_timestamp - position.start_time > HOLD_MAX_DURATION_SECONDS:
-                        logging.warning(f"position {position} timeout")
+                        logging.warning(f"MAIN {position} liquidation call caused by timeout {HOLD_MAX_DURATION_SECONDS}")
                         is_liquidated = True
 
                     if is_liquidated:
                         with glb_lock:
                             glb_liquidated = True
+                            #glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] + position.pnl)
 
-                        logging.warning(f"liquidate position {position}")
+                        logging.warning(f"MAIN liquidate {position}")
                         execution_broker.put(ExecutionOrder(
                                     block_number=block_data.block_number,
                                     block_timestamp=block_data.block_timestamp,
@@ -264,6 +289,7 @@ async def main():
         global glb_lock
         global glb_fullfilled
         global glb_liquidated
+        global glb_daily_pnl
 
         while True:
             report = await execution_report.coro_get()
@@ -293,7 +319,11 @@ async def main():
                                     glb_inventory.pop(idx)
                                     glb_fullfilled = False
                                     glb_liquidated = False
-                                    logging.info(f"MAIN remove {position.pair} at index #{idx} from inventory")
+
+                                    pnl = (Decimal(report.amount_out)-Decimal(BUY_AMOUNT))/Decimal(BUY_AMOUNT)*Decimal(100)
+                                    glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] + pnl)
+
+                                    logging.info(f"MAIN remove {position} at index #{idx} from inventory, update PnL {glb_daily_pnl}")
                 else:
                     logging.info(f"execution failed, reset lock...")
                     if report.is_buy:
@@ -306,7 +336,9 @@ async def main():
                                     glb_inventory.pop(idx)
                                     glb_fullfilled = False
                                     glb_liquidated = False
-                                    logging.info(f"remove {position.pair} at index #{idx} from inventory")
+                                    glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] - 100)
+
+                                    logging.info(f"MAIN remove {position} at index #{idx} from inventory, update PnL {glb_daily_pnl}")
 
     #await strategy(watching_broker, execution_broker)
     await asyncio.gather(watching_process(watching_broker, watching_notifier),
