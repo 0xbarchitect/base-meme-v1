@@ -92,11 +92,13 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
         block_data = await watching_broker.coro_get()
 
         logging.info(f"STRATEGY received block {block_data}")
+        
         # send block report
-        report_broker.put(ReportData(
-            type=ReportDataType.BLOCK,
-            data=block_data,
-        ))
+        if len(block_data.pairs) > 0:
+            report_broker.put(ReportData(
+                type=ReportDataType.BLOCK,
+                data=block_data,
+            ))
 
         # hardstop based on pnl
         logging.info(f"[{glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}] PnL {glb_daily_pnl[1]}")
