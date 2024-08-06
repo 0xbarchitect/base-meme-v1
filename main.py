@@ -58,7 +58,7 @@ TAKE_PROFIT_PERCENTAGE = 50
 STOP_LOSS_PERCENTAGE = -10
 HOLD_MAX_DURATION_SECONDS = 10*60
 WATCHLIST_DURATION_SECONDS = 20*60
-HARD_STOP_PNL_THRESHOLD = -150
+HARD_STOP_PNL_THRESHOLD = -99
 
 async def watching_process(watching_broker, watching_notifier):
     block_watcher = BlockWatcher(os.environ.get('HTTPS_URL'),
