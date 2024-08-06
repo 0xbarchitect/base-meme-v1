@@ -69,15 +69,16 @@ class BlockWatcher(metaclass=Singleton):
                 ))
 
     @timer_decorator
+    def get_reserves(self, pair_address):
+        contract = self.w3.eth.contract(address=pair_address, abi=self.pair_abi)
+        reserves = contract.functions.getReserves().call()
+        return reserves
+    
+    @timer_decorator
     def filter_log_in_block(self, block_number, block_timestamp):
         #block_number = 17918019 # TODO
 
         def filter_paircreated_log(block_number):
-            def get_reserves(pair):
-                contract = self.w3.eth.contract(address=pair,abi=self.pair_abi)
-                reserves = contract.functions.getReserves().call()
-                return reserves
-
             pair_created_logs = self.factory.events.PairCreated().get_logs(
                 fromBlock = block_number,
                 toBlock = block_number,
@@ -96,7 +97,7 @@ class BlockWatcher(metaclass=Singleton):
                         ))
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                future_to_pair = {executor.submit(get_reserves, pair.address): idx for idx,pair in enumerate(pairs)}
+                future_to_pair = {executor.submit(self.get_reserves, pair.address): idx for idx,pair in enumerate(pairs)}
                 for future in concurrent.futures.as_completed(future_to_pair):
                     idx = future_to_pair[future]
                     try:
@@ -163,16 +164,23 @@ class BlockWatcher(metaclass=Singleton):
         global glb_lock
 
         def add_pair_to_watchlist(pair):
+            # sync current reserves
+            result = self.get_reserves(pair.address)
+            logging.info(f"get reserves {pair} result {result}")
+
+            pair.reserve_token = Web3.from_wei(result[0],'ether') if pair.token_index == 0 else Web3.from_wei(result[1], 'ether')
+            pair.reserve_eth = Web3.from_wei(result[1],'ether') if pair.token_index == 0 else Web3.from_wei(result[0], 'ether')
+
             with glb_lock:
                 self.inventory.append(pair)
-                logging.info(f"WATCHER add pair {pair} to watching {self.inventory}")
+            logging.info(f"WATCHER add pair {pair} to watching {len(self.inventory)}")
 
         def remove_pair_from_watchlist(pair):
             for idx,pr in enumerate(self.inventory):
                 if pr.address == pair.address:
                     with glb_lock:
                         self.inventory.pop(idx)
-                        logging.info(f"WATCHER remove pair {pair} from watching {self.inventory}")
+                        logging.info(f"WATCHER remove pair {pair} from watching {len(self.inventory)}")
 
         while True:
             report = await self.report_broker.coro_get()
@@ -184,12 +192,6 @@ class BlockWatcher(metaclass=Singleton):
                         add_pair_to_watchlist(report.pair)
                 else:
                     remove_pair_from_watchlist(report.pair)
-            elif isinstance(report, ReportData) and report.type == ReportDataType.WATCHLIST_ADDED:
-                if report.data is not None and isinstance(report.data, Pair) and report.data.address not in [pair.address for pair in self.inventory]:
-                    add_pair_to_watchlist(report.data)
-            elif isinstance(report, ReportData) and report.type == ReportDataType.WATCHLIST_REMOVED:
-                if report.data is not None and isinstance(report.data, Pair) and report.data.address in [pair.address for pair in self.inventory]:
-                    remove_pair_from_watchlist(report.data)
 
     
     async def main(self):
@@ -211,20 +213,20 @@ if __name__ == "__main__":
     block_broker = aioprocessing.AioQueue()
     report_broker = aioprocessing.AioQueue()
 
-    # report_broker.put(ExecutionAck(
-    #     lead_block=0,
-    #     block_number=0,
-    #     tx_hash='0xabc',
-    #     tx_status=1,
-    #     pair=Pair(
-    #         token='0xabc',
-    #         token_index=1,
-    #         address='0x6A89E43ef759677d7647bB46BF3890cdC18264BC',
-    #     ),
-    #     amount_in=1,
-    #     amount_out=1,
-    #     is_buy=True,
-    # ))
+    report_broker.put(ExecutionAck(
+        lead_block=0,
+        block_number=0,
+        tx_hash='0xabc',
+        tx_status=1,
+        pair=Pair(
+            address='0x9694DE8E322212ECf96e9276B8ab5c0b2f7a3a24',            
+            token='0x2E5387d321b358e8161C8F2ec00436006A7D07E2',
+            token_index=0,
+        ),
+        amount_in=1,
+        amount_out=1,
+        is_buy=True,
+    ))
 
     # report_broker.put(ExecutionAck(
     #     lead_block=0,
