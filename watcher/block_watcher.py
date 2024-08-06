@@ -7,6 +7,7 @@ import asyncio
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 import threading
+import websockets
 
 from web3 import AsyncWeb3, Web3
 from web3.providers import WebsocketProviderV2, HTTPProvider
@@ -36,37 +37,39 @@ class BlockWatcher(metaclass=Singleton):
         self.factory = self.w3.eth.contract(address=self.factory_address, abi=self.factory_abi)
 
     async def listen_block(self):
-        async with AsyncWeb3.persistent_websocket(
-            WebsocketProviderV2(self.wss_url)
-        ) as w3Async:
-            logging.info(f"websocket connected...")
+        async for w3Async in AsyncWeb3.persistent_websocket(WebsocketProviderV2(self.wss_url)):
+            try:
+                logging.info(f"websocket connected...")
 
-            subscription_id = await w3Async.eth.subscribe("newHeads")
+                subscription_id = await w3Async.eth.subscribe("newHeads")
+                async for response in w3Async.ws.process_subscriptions():
+                    logging.debug(f"new block {response}\n")
+                    
+                    block_number = Web3.to_int(hexstr=response['result']['number'])
+                    block_timestamp = Web3.to_int(hexstr=response['result']['timestamp'])
+                    base_fee = Web3.to_int(hexstr=response['result']['baseFeePerGas'])
+                    gas_used = Web3.to_int(hexstr=response['result']['gasUsed'])
+                    gas_limit = Web3.to_int(hexstr=response['result']['gasLimit'])
 
-            async for response in w3Async.ws.process_subscriptions():
-                logging.debug(f"new block {response}\n")
-                
-                block_number = Web3.to_int(hexstr=response['result']['number'])
-                block_timestamp = Web3.to_int(hexstr=response['result']['timestamp'])
-                base_fee = Web3.to_int(hexstr=response['result']['baseFeePerGas'])
-                gas_used = Web3.to_int(hexstr=response['result']['gasUsed'])
-                gas_limit = Web3.to_int(hexstr=response['result']['gasLimit'])
+                    logging.debug(f"block number {block_number} timestamp {block_timestamp}")
 
-                logging.debug(f"block number {block_number} timestamp {block_timestamp}")
+                    pairs = self.filter_log_in_block(block_number, block_timestamp)
 
-                pairs = self.filter_log_in_block(block_number, block_timestamp)
+                    logging.debug(f"found pairs {pairs}")
 
-                logging.debug(f"found pairs {pairs}")
+                    self.block_broker.put(BlockData(
+                        block_number,
+                        block_timestamp,
+                        base_fee,
+                        gas_used,
+                        gas_limit,
+                        pairs,
+                        self.inventory,
+                    ))
 
-                self.block_broker.put(BlockData(
-                    block_number,
-                    block_timestamp,
-                    base_fee,
-                    gas_used,
-                    gas_limit,
-                    pairs,
-                    self.inventory,
-                ))
+            except websockets.ConnectionClosed:
+                logging.error(f"websocket connection closed, reconnect...")
+                continue
 
     @timer_decorator
     def get_reserves(self, pair_address):
