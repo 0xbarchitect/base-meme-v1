@@ -39,25 +39,29 @@ ROUTER_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniRouter.abi
 FACTORY_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniV2Factory.abi.json")
 BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/InspectBot.abi.json")
 
+# simulation conditions
 RESERVE_ETH_MIN_THRESHOLD = 5
 SIMULATION_AMOUNT = 0.001
-SLIPPAGE_MIN_THRESHOLD = 30 # in basis point
-SLIPPAGE_MAX_THRESHOLD = 100
-BUY_AMOUNT = 0.0001
+SLIPPAGE_MIN_THRESHOLD = 30 # in basis points
+SLIPPAGE_MAX_THRESHOLD = 100 # in basis points
 
-# gas
+# watchlist config
+MAX_INSPECT_ATTEMPTS = 6
+INSPECT_INTERVAL_SECONDS = 5*60
+WATCHLIST_CAPACITY = 50
+
+# buy/sell tx config
+BUY_AMOUNT = 0.0001
+DEADLINE_DELAY_SECONDS = 30
 GAS_LIMIT = 250*10**3
 MAX_FEE_PER_GAS = 10**9
 MAX_PRIORITY_FEE_PER_GAS = 10**9
 GAS_COST = 300*100**3
 
-DEADLINE_DELAY_SECONDS = 30
-
-# liquidation
+# liquidation conditions
 TAKE_PROFIT_PERCENTAGE = 50
 STOP_LOSS_PERCENTAGE = -10
 HOLD_MAX_DURATION_SECONDS = 5*60
-WATCHLIST_DURATION_SECONDS = 5*60
 HARD_STOP_PNL_THRESHOLD = -199
 
 async def watching_process(watching_broker, watching_notifier):
@@ -139,7 +143,6 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                     if is_liquidated:
                         with glb_lock:
                             glb_liquidated = True
-                            #glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] + position.pnl)
 
                         logging.warning(f"MAIN liquidate {position}")
                         execution_broker.put(ExecutionOrder(
@@ -150,61 +153,63 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                                     amount_out_min=0,
                                     is_buy=False,
                                 ))
-        elif len(glb_watchlist)>0:
-            if not glb_fullfilled:
-                for idx,pair in enumerate(glb_watchlist):
-                    if block_data.block_timestamp - pair.created_at > WATCHLIST_DURATION_SECONDS:
-                        logging.info(f"MAIN pair {pair} waiting time elapsed {WATCHLIST_DURATION_SECONDS}")
+        
+        if len(glb_watchlist)>0:
+            logging.info(f"MAIN watching list {len(glb_watchlist)}")
 
-                        with glb_lock:
-                            glb_watchlist.pop(idx)
-                            logging.warning(f"remove pair {pair} from watching list at index #{idx}")
+            inspection_batch=[]
+            for pair in glb_watchlist:
+                if (block_data.block_timestamp - pair.created_at) > pair.inspect_attempts*INSPECT_INTERVAL_SECONDS:
+                    logging.info(f"MAIN pair {pair} inspect time #{pair.inspect_attempts + 1} elapsed")
+                    inspection_batch.append(pair)
 
-                        simulation_result = simulate([pair])
-                        logging.info(f"MAIN simulation result {simulation_result}")
+            if len(inspection_batch)>0:
+                simulation_results = simulate(inspection_batch)
+                logging.info(f"MAIN watchlist simulation result {simulation_results}")
 
-                        if simulation_result is not None and isinstance(simulation_result, SimulationResult):
+                for result in simulation_results:
+                    for idx,pair in enumerate(glb_watchlist):
+                        if result.pair.address == pair.address:
                             with glb_lock:
-                                glb_fullfilled = True
+                                pair.inspect_attempts+=1
+                            logging.info(f"MAIN update {pair} inspect attempts {pair.inspect_attempts}")
+
+                        if pair.inspect_attempts >= MAX_INSPECT_ATTEMPTS:   
+                            with glb_lock:
+                                glb_watchlist.pop(idx)
+                                logging.warning(f"remove pair {pair} from watching list at index #{idx} caused by reaching max attempts {MAX_INSPECT_ATTEMPTS}")
+
+                            if not glb_fullfilled:
+                                with glb_lock:
+                                    glb_fullfilled = True
+
                                 # send execution order
-                                logging.warning(f"MAIN send buy order {simulation_result.pair} amount {BUY_AMOUNT}")
+                                logging.warning(f"MAIN send buy-order of {pair} amount {BUY_AMOUNT}")
                                 execution_broker.put(ExecutionOrder(
                                     block_number=block_data.block_number,
                                     block_timestamp=block_data.block_timestamp,
-                                    pair=simulation_result.pair,
+                                    pair=pair,
                                     amount_in=BUY_AMOUNT,
                                     amount_out_min=0,
                                     is_buy=True,
                                 ))
-                        else:
-                            # notify watcher
-                            watching_notifier.put(ReportData(
-                                type=ReportDataType.WATCHLIST_REMOVED,
-                                data=pair,
-                            ))
 
-        elif len(block_data.pairs)>0:
-            if len(glb_watchlist)==0:
-                simulation_result = simulate(block_data.pairs)
+        if  len(block_data.pairs)>0:
+            if len(glb_watchlist)<WATCHLIST_CAPACITY:
+                simulation_results = simulate(block_data.pairs)
+                logging.debug(f"SIMULATION result {simulation_results}")
 
-                logging.info(f"SIMULATION result {simulation_result}")
-
-                if simulation_result is not None and isinstance(simulation_result, SimulationResult):
+                for result in simulation_results:
                     with glb_lock:
                         # append to watchlist
-                        glb_watchlist.append(simulation_result.pair)
+                        pair=result.pair
+                        pair.inspect_attempts=1
 
-                        logging.info(f"MAIN add pair {simulation_result.pair} to watchlist {glb_watchlist}")
-                    
-                    # notify watcher
-                    watching_notifier.put(ReportData(
-                        type=ReportDataType.WATCHLIST_ADDED,
-                        data=simulation_result.pair,
-                    ))
-                else:
-                    logging.info(f"simulation result is not qualified")
+                        glb_watchlist.append(pair)
+
+                        logging.info(f"MAIN add pair {pair} to watchlist")
             else:
-                logging.info(f"already fullfilled")
+                logging.info(f"MAIN watchlist is already full capacity")
 
 
 @timer_decorator
@@ -226,7 +231,7 @@ def simulate(pairs) -> SimulationResult:
                                 
         return simulator.inspect_pair(pair, SIMULATION_AMOUNT)
     
-    best_option = None
+    results = []
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         future_to_token = {executor.submit(inspect_pair, pair): pair.token for pair in pairs}
@@ -237,14 +242,11 @@ def simulate(pairs) -> SimulationResult:
                 logging.info(f"inspect token {token} result {result}")
                 if result is not None and isinstance(result, SimulationResult):
                     if result.slippage > SLIPPAGE_MIN_THRESHOLD and result.slippage < SLIPPAGE_MAX_THRESHOLD:
-                        if best_option is None:
-                            best_option = result
-                        elif result.slippage < best_option.slippage:
-                            best_option = result
+                        results.append(result)
             except Exception as e:
-                logging.error(f"inspect token error {e}")
+                logging.error(f"inspect token {token} error {e}")
 
-    return best_option
+    return results
 
 def execution_process(execution_broker, report_broker):
     executor = BuySellExecutor(
