@@ -47,7 +47,7 @@ SLIPPAGE_MAX_THRESHOLD = 100 # in basis points
 
 # watchlist config
 MAX_INSPECT_ATTEMPTS = 6
-INSPECT_INTERVAL_SECONDS = 5*60
+INSPECT_INTERVAL_SECONDS = 60
 WATCHLIST_CAPACITY = 50
 
 # buy/sell tx config
@@ -177,7 +177,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                         if pair.inspect_attempts >= MAX_INSPECT_ATTEMPTS:   
                             with glb_lock:
                                 glb_watchlist.pop(idx)
-                                logging.warning(f"remove pair {pair} from watching list at index #{idx} caused by reaching max attempts {MAX_INSPECT_ATTEMPTS}")
+                            logging.warning(f"remove pair {pair} from watching list at index #{idx} caused by reaching max attempts {MAX_INSPECT_ATTEMPTS}")
 
                             if not glb_fullfilled:
                                 with glb_lock:
@@ -193,6 +193,16 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                                     amount_out_min=0,
                                     is_buy=True,
                                 ))
+
+                # remove simulation failed pair
+                failed_pairs = [pair.address for pair in inspection_batch if pair.address in [result.pair.address for result in simulation_results]]
+                for idx,pair in enumerate(glb_watchlist):
+                    if pair.address in failed_pairs:
+                        with glb_lock:
+                            glb_watchlist.pop(idx)
+
+                        logging.warning(f"MAIN remove pair {pair} from watchlist at index #{idx} due to simulation failed")
+
 
         if  len(block_data.pairs)>0:
             if len(glb_watchlist)<WATCHLIST_CAPACITY:
