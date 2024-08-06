@@ -46,8 +46,8 @@ SLIPPAGE_MIN_THRESHOLD = 30 # in basis points
 SLIPPAGE_MAX_THRESHOLD = 100 # in basis points
 
 # watchlist config
-MAX_INSPECT_ATTEMPTS = 6
-INSPECT_INTERVAL_SECONDS = 60
+MAX_INSPECT_ATTEMPTS = 5
+INSPECT_INTERVAL_SECONDS = 5*60
 WATCHLIST_CAPACITY = 50
 
 # buy/sell tx config
@@ -195,7 +195,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                                 ))
 
                 # remove simulation failed pair
-                failed_pairs = [pair.address for pair in inspection_batch if pair.address in [result.pair.address for result in simulation_results]]
+                failed_pairs = [pair.address for pair in inspection_batch if pair.address not in [result.pair.address for result in simulation_results]]
                 for idx,pair in enumerate(glb_watchlist):
                     if pair.address in failed_pairs:
                         with glb_lock:
