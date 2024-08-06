@@ -39,7 +39,7 @@ ROUTER_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniRouter.abi
 FACTORY_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniV2Factory.abi.json")
 BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/InspectBot.abi.json")
 
-RESERVE_ETH_MIN_THRESHOLD = 10
+RESERVE_ETH_MIN_THRESHOLD = 5
 SIMULATION_AMOUNT = 0.001
 SLIPPAGE_MIN_THRESHOLD = 30 # in basis point
 SLIPPAGE_MAX_THRESHOLD = 100
@@ -56,8 +56,8 @@ DEADLINE_DELAY_SECONDS = 30
 # liquidation
 TAKE_PROFIT_PERCENTAGE = 50
 STOP_LOSS_PERCENTAGE = -10
-HOLD_MAX_DURATION_SECONDS = 90
-WATCHLIST_DURATION_SECONDS = 0
+HOLD_MAX_DURATION_SECONDS = 10*60
+WATCHLIST_DURATION_SECONDS = 20*60
 HARD_STOP_PNL_THRESHOLD = -150
 
 async def watching_process(watching_broker, watching_notifier):
