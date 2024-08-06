@@ -4,7 +4,7 @@ from django.utils.html import format_html
 from console.models import Block, Transaction, Pair, Position, PositionTransaction
 
 class ConsoleAdminSite(admin.AdminSite):
-    index_title = "Console homepage"
+    index_title = "Console"
 
 class NoDeletePermissionModelAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
