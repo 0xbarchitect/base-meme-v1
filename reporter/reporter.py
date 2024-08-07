@@ -19,6 +19,9 @@ django.setup()
 from console.models import Block, Transaction, Position, PositionTransaction
 import console.models
 
+BUY_AMOUNT=float(os.environ.get('BUY_AMOUNT'))
+GAS_COST=2*10**-6
+
 class Reporter(metaclass=Singleton):
     def __init__(self, receiver):
         self.receiver = receiver
@@ -119,7 +122,9 @@ class Reporter(metaclass=Singleton):
                     position.liquidated_at=make_aware(datetime.fromtimestamp(int(time())))
                     position.sell_price=Decimal(execution_ack.amount_out)/Decimal(execution_ack.amount_in) if execution_ack.amount_in>0 and not execution_ack.is_buy else 0
                     position.liquidation_attempts=position.liquidation_attempts+1
-                    position.pnl=(Decimal(position.sell_price)/Decimal(position.buy_price)-Decimal(1))*Decimal(100)
+                    
+                    #position.pnl=(Decimal(position.sell_price)/Decimal(position.buy_price)-Decimal(1))*Decimal(100)
+                    position.pnl=(Decimal(execution_ack.amount_out)-Decimal(BUY_AMOUNT)-Decimal(GAS_COST))*Decimal(100) if execution_ack.amount_in>0 and not execution_ack.is_buy else 0
 
                     await position.asave()
 

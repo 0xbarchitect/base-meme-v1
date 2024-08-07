@@ -347,7 +347,7 @@ async def main():
                                     glb_fullfilled -= 1
                                     glb_liquidated = False
 
-                                    pnl = (Decimal(report.amount_out)-Decimal(BUY_AMOUNT))/Decimal(BUY_AMOUNT)*Decimal(100)
+                                    pnl = (Decimal(report.amount_out)-Decimal(BUY_AMOUNT)-Decimal(GAS_COST))/Decimal(BUY_AMOUNT)*Decimal(100)
                                     glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] + pnl)
 
                                     logging.info(f"MAIN remove {position} at index #{idx} from inventory, update PnL {glb_daily_pnl}")
