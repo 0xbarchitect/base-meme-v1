@@ -210,7 +210,7 @@ if __name__ == '__main__':
     
     result=simulator.inspect_pair(Pair(
         address='0x74798aed048B6AA696e69AaE5Bc60FD44c2E2c11',
-        token='0xB5D58aE714bbfaE6aB2019b1349665A73174f0d5',
+        token='0x6B5E4746c8192916D0925d0BF9Fe9D125335F251',
         token_index=1,
         reserve_token=0,
         reserve_eth=0
