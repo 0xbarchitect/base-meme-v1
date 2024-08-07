@@ -16,7 +16,7 @@ import sys # for testing
 sys.path.append('..')
 
 from library import Singleton
-from data import BlockData, Pair, ExecutionAck, FilterLogs, FilterLogsType, ReportData, ReportDataType
+from data import BlockData, Pair, ExecutionAck, FilterLogs, FilterLogsType, ReportData, ReportDataType, TxStatus
 from helpers import async_timer_decorator, load_abi, timer_decorator
 
 glb_lock = threading.Lock()
@@ -190,7 +190,7 @@ class BlockWatcher(metaclass=Singleton):
 
             if report is not None and isinstance(report, ExecutionAck) and report.pair is not None:
                 logging.info(f"WATCHER receive report {report}")
-                if report.is_buy:
+                if report.is_buy and report.tx_status == TxStatus.SUCCESS:
                     if report.pair.address not in [pair.address for pair in self.inventory]:
                         add_pair_to_watchlist(report.pair)
                 else:

@@ -53,16 +53,16 @@ INSPECT_INTERVAL_SECONDS=int(os.environ.get('INSPECT_INTERVAL_SECONDS'))
 WATCHLIST_CAPACITY = 100
 
 # buy/sell tx config
-INVENTORY_CAPACITY = 2
+INVENTORY_CAPACITY = 1
 BUY_AMOUNT=float(os.environ.get('BUY_AMOUNT'))
 DEADLINE_DELAY_SECONDS = 30
 GAS_LIMIT = 250*10**3
 MAX_FEE_PER_GAS = 10**9
 MAX_PRIORITY_FEE_PER_GAS = 10**9
-GAS_COST = 300*100**3
+GAS_COST = 2*10**-6
 
 # liquidation conditions
-TAKE_PROFIT_PERCENTAGE = 50
+TAKE_PROFIT_PERCENTAGE = 10
 STOP_LOSS_PERCENTAGE = -10
 HOLD_MAX_DURATION_SECONDS=int(os.environ.get('HOLD_MAX_DURATION_SECONDS'))
 HARD_STOP_PNL_THRESHOLD=int(os.environ.get('HARD_STOP_PNL_THRESHOLD'))
@@ -88,10 +88,8 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
     global glb_daily_pnl
     global glb_auto_run
 
-    def calculate_pnl_percentage(position, pair, base_fee):
-        #numerator = Decimal(position.amount)*(Decimal(position.buy_price) - calculate_price(pair.reserve_token, pair.reserve_eth)) - GAS_COST*base_fee/10**9
-        
-        numerator = Decimal(position.amount)*calculate_price(pair.reserve_token, pair.reserve_eth) - Decimal(BUY_AMOUNT)
+    def calculate_pnl_percentage(position, pair):        
+        numerator = Decimal(position.amount)*calculate_price(pair.reserve_token, pair.reserve_eth) - Decimal(GAS_COST)
         denominator = Decimal(BUY_AMOUNT)
         return (numerator / denominator) * Decimal(100)
 
@@ -131,10 +129,10 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                     is_liquidated = False
                     for pair in block_data.inventory:
                         if position.pair.address == pair.address:
-                            position.pnl = calculate_pnl_percentage(position, pair, calculate_next_block_base_fee(block_data.base_fee, block_data.gas_used, block_data.gas_limit))
+                            position.pnl = calculate_pnl_percentage(position, pair)
                             logging.info(f"{position} update PnL {position.pnl}")
                             
-                            if position.pnl > TAKE_PROFIT_PERCENTAGE or position.pnl < STOP_LOSS_PERCENTAGE:
+                            if position.pnl > Decimal(TAKE_PROFIT_PERCENTAGE) or position.pnl < Decimal(STOP_LOSS_PERCENTAGE):
                                 logging.warning(f"{position} take profit or stop loss caused by pnl {position.pnl}")
                                 is_liquidated = True
                                 break
