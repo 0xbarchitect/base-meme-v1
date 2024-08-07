@@ -23,7 +23,7 @@ from helpers import load_abi, timer_decorator, calculate_price, calculate_next_b
 from data import ExecutionOrder, SimulationResult, ExecutionAck, Position, TxStatus, ReportData, ReportDataType
 
 # global variables
-glb_fullfilled = False # TODO
+glb_fullfilled = 0
 glb_liquidated = False
 glb_watchlist = []
 glb_inventory = []
@@ -40,18 +40,21 @@ FACTORY_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniV2Factory
 BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/InspectBot.abi.json")
 
 # simulation conditions
-RESERVE_ETH_MIN_THRESHOLD = 5
+RESERVE_ETH_MIN_THRESHOLD=int(os.environ.get('RESERVE_ETH_MIN_THRESHOLD'))
+RESERVE_ETH_MAX_THRESHOLD=int(os.environ.get('RESERVE_ETH_MAX_THRESHOLD'))
+
 SIMULATION_AMOUNT = 0.001
 SLIPPAGE_MIN_THRESHOLD = 30 # in basis points
 SLIPPAGE_MAX_THRESHOLD = 100 # in basis points
 
 # watchlist config
-MAX_INSPECT_ATTEMPTS = 7
-INSPECT_INTERVAL_SECONDS = 5*60
-WATCHLIST_CAPACITY = 50
+MAX_INSPECT_ATTEMPTS=int(os.environ.get('MAX_INSPECT_ATTEMPTS'))
+INSPECT_INTERVAL_SECONDS=int(os.environ.get('INSPECT_INTERVAL_SECONDS'))
+WATCHLIST_CAPACITY = 100
 
 # buy/sell tx config
-BUY_AMOUNT = 0.0001
+INVENTORY_CAPACITY = 2
+BUY_AMOUNT=float(os.environ.get('BUY_AMOUNT'))
 DEADLINE_DELAY_SECONDS = 30
 GAS_LIMIT = 250*10**3
 MAX_FEE_PER_GAS = 10**9
@@ -61,8 +64,8 @@ GAS_COST = 300*100**3
 # liquidation conditions
 TAKE_PROFIT_PERCENTAGE = 50
 STOP_LOSS_PERCENTAGE = -10
-HOLD_MAX_DURATION_SECONDS = 5*60
-HARD_STOP_PNL_THRESHOLD = -199
+HOLD_MAX_DURATION_SECONDS=int(os.environ.get('HOLD_MAX_DURATION_SECONDS'))
+HARD_STOP_PNL_THRESHOLD=int(os.environ.get('HARD_STOP_PNL_THRESHOLD'))
 
 async def watching_process(watching_broker, watching_notifier):
     block_watcher = BlockWatcher(os.environ.get('HTTPS_URL'),
@@ -179,9 +182,9 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                                 glb_watchlist.pop(idx)
                             logging.warning(f"remove pair {pair} from watching list at index #{idx} caused by reaching max attempts {MAX_INSPECT_ATTEMPTS}")
 
-                            if not glb_fullfilled:
+                            if glb_fullfilled < INVENTORY_CAPACITY:
                                 with glb_lock:
-                                    glb_fullfilled = True
+                                    glb_fullfilled += 1
 
                                 # send execution order
                                 logging.warning(f"MAIN send buy-order of {pair} amount {BUY_AMOUNT}")
@@ -193,6 +196,8 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                                     amount_out_min=0,
                                     is_buy=True,
                                 ))
+                            else:
+                                logging.warning(f"MAIN inventory capacity {INVENTORY_CAPACITY} is full")
 
                 # remove simulation failed pair
                 failed_pairs = [pair.address for pair in inspection_batch if pair.address not in [result.pair.address for result in simulation_results]]
@@ -225,7 +230,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
 @timer_decorator
 def simulate(pairs) -> SimulationResult:
     def inspect_pair(pair) -> SimulationResult:
-        if pair.reserve_eth < RESERVE_ETH_MIN_THRESHOLD:
+        if pair.reserve_eth<RESERVE_ETH_MIN_THRESHOLD or pair.reserve_eth>RESERVE_ETH_MAX_THRESHOLD:
             return None
         
         simulator = Simulator(
@@ -331,7 +336,7 @@ async def main():
                             if position.pair.address == report.pair.address:
                                 with glb_lock:
                                     glb_inventory.pop(idx)
-                                    glb_fullfilled = False
+                                    glb_fullfilled -= 1
                                     glb_liquidated = False
 
                                     pnl = (Decimal(report.amount_out)-Decimal(BUY_AMOUNT))/Decimal(BUY_AMOUNT)*Decimal(100)
@@ -342,13 +347,13 @@ async def main():
                     logging.info(f"execution failed, reset lock...")
                     if report.is_buy:
                         with glb_lock:
-                            glb_fullfilled = False
+                            glb_fullfilled -= 1
                     else:
                         for idx, position in enumerate(glb_inventory):
                             if position.pair.address == report.pair.address:
                                 with glb_lock:
                                     glb_inventory.pop(idx)
-                                    glb_fullfilled = False
+                                    glb_fullfilled -= 1
                                     glb_liquidated = False
                                     glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] - 100)
 
