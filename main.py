@@ -229,7 +229,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                             logging.info(f"MAIN add pair {pair} to watchlist")
                     else:
                         # send order immediately
-                        send_exec_order(block_data, pair)
+                        send_exec_order(block_data, result.pair)
 
             else:
                 logging.info(f"MAIN watchlist is already full capacity")
