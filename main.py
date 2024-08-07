@@ -92,6 +92,26 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
         numerator = Decimal(position.amount)*calculate_price(pair.reserve_token, pair.reserve_eth) - Decimal(BUY_AMOUNT) - Decimal(GAS_COST)
         denominator = Decimal(BUY_AMOUNT)
         return (numerator / denominator) * Decimal(100)
+    
+    def send_exec_order(block_data, pair):
+        global glb_fullfilled
+
+        if glb_fullfilled < INVENTORY_CAPACITY:
+            with glb_lock:
+                glb_fullfilled += 1
+
+            # send execution order
+            logging.warning(f"MAIN send buy-order of {pair} amount {BUY_AMOUNT}")
+            execution_broker.put(ExecutionOrder(
+                block_number=block_data.block_number,
+                block_timestamp=block_data.block_timestamp,
+                pair=pair,
+                amount_in=BUY_AMOUNT,
+                amount_out_min=0,
+                is_buy=True,
+            ))
+        else:
+            logging.warning(f"MAIN inventory capacity {INVENTORY_CAPACITY} is full")
 
     while True:
         block_data = await watching_broker.coro_get()
@@ -180,22 +200,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                                 glb_watchlist.pop(idx)
                             logging.warning(f"remove pair {pair} from watching list at index #{idx} caused by reaching max attempts {MAX_INSPECT_ATTEMPTS}")
 
-                            if glb_fullfilled < INVENTORY_CAPACITY:
-                                with glb_lock:
-                                    glb_fullfilled += 1
-
-                                # send execution order
-                                logging.warning(f"MAIN send buy-order of {pair} amount {BUY_AMOUNT}")
-                                execution_broker.put(ExecutionOrder(
-                                    block_number=block_data.block_number,
-                                    block_timestamp=block_data.block_timestamp,
-                                    pair=pair,
-                                    amount_in=BUY_AMOUNT,
-                                    amount_out_min=0,
-                                    is_buy=True,
-                                ))
-                            else:
-                                logging.warning(f"MAIN inventory capacity {INVENTORY_CAPACITY} is full")
+                            send_exec_order(block_data, pair)
 
                 # remove simulation failed pair
                 failed_pairs = [pair.address for pair in inspection_batch if pair.address not in [result.pair.address for result in simulation_results]]
@@ -213,14 +218,19 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                 logging.debug(f"SIMULATION result {simulation_results}")
 
                 for result in simulation_results:
-                    with glb_lock:
-                        # append to watchlist
-                        pair=result.pair
-                        pair.inspect_attempts=1
+                    if MAX_INSPECT_ATTEMPTS > 1:
+                        with glb_lock:
+                            # append to watchlist
+                            pair=result.pair
+                            pair.inspect_attempts=1
 
-                        glb_watchlist.append(pair)
+                            glb_watchlist.append(pair)
 
-                        logging.info(f"MAIN add pair {pair} to watchlist")
+                            logging.info(f"MAIN add pair {pair} to watchlist")
+                    else:
+                        # send order immediately
+                        send_exec_order(block_data, pair)
+
             else:
                 logging.info(f"MAIN watchlist is already full capacity")
 
