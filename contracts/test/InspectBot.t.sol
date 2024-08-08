@@ -44,9 +44,9 @@ contract InspectBotTest is Test, HelperContract {
     bootstrapBot = new BootstrapBot(ROUTERV2, FACTORYV2, WETH);
     inspectBot = new InspectBot(ROUTERV2, FACTORYV2, WETH);
 
-    token.transfer(address(bootstrapBot), TOTAL_SUPPLY);
-    bootstrapBot.approveToken(ROUTERV2, address(token), TOTAL_SUPPLY);
-    bootstrapBot.addLiquidity{value: INITIAL_AVAX_RESERVE}(address(token), TOTAL_SUPPLY);
+    token.transfer(address(bootstrapBot), TOTAL_SUPPLY/2);
+    bootstrapBot.approveToken(ROUTERV2, address(token), TOTAL_SUPPLY/2);
+    bootstrapBot.addLiquidity{value: INITIAL_AVAX_RESERVE}(address(token), TOTAL_SUPPLY/2);
   }
 
   function test_inspect() public {    
@@ -70,6 +70,13 @@ contract InspectBotTest is Test, HelperContract {
 
     assertEq(amountBuy[1], amountSell[0]);
     assertGt(amountSell[1], INSPECT_VALUE*9/10);
+  }
+
+  function test_inspect_transfer() public {
+    token.approve(address(inspectBot), TOTAL_SUPPLY/4);
+    uint256 received = inspectBot.inspect_transfer(address(token), TOTAL_SUPPLY/4);
+
+    assertEq(received, TOTAL_SUPPLY/4);
   }
 
 }

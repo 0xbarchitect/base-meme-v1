@@ -40,6 +40,7 @@ FACTORY_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniV2Factory
 BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/InspectBot.abi.json")
 
 # simulation conditions
+WATCHING_ONLY=int(os.environ.get('WATCHING_ONLY', '0'))
 RESERVE_ETH_MIN_THRESHOLD=int(os.environ.get('RESERVE_ETH_MIN_THRESHOLD'))
 RESERVE_ETH_MAX_THRESHOLD=int(os.environ.get('RESERVE_ETH_MAX_THRESHOLD'))
 
@@ -127,6 +128,10 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
 
         # hardstop based on pnl
         logging.info(f"[{glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}] PnL {glb_daily_pnl[1]}")
+
+        if WATCHING_ONLY==1:
+            logging.info(f"Hi, watching only =))...")
+            continue
 
         if glb_daily_pnl[1] < HARD_STOP_PNL_THRESHOLD:
             with glb_lock:

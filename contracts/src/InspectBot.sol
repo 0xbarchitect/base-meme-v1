@@ -66,4 +66,10 @@ contract InspectBot is AbstractBot {
     IERC20(erc20).approve(_router, balance);
     return _swapTokenForNative(erc20, balance, 0, payable(to), deadline);
   }
+
+  function inspect_transfer(address erc20, uint256 amount) external onlyOwner returns (uint256 received) {
+    bool success = IERC20(erc20).transferFrom(msg.sender, address(this), amount);
+    require(success, "Transfer failed");
+    return IERC20(erc20).balanceOf(address(this));
+  }
 }

@@ -235,8 +235,8 @@ if __name__ == "__main__":
         block_number=0, 
         block_timestamp=0, 
         pair=Pair(
-            address='0x74798aed048B6AA696e69AaE5Bc60FD44c2E2c11',
-            token='0x6B5E4746c8192916D0925d0BF9Fe9D125335F251',
+            address='0xc980Ee4683E76C8256aD7346B32C015917e4b31c',
+            token='0x7555765Ac4b0975341fF7ec076ab361b19ADC56c',
             token_index=1,
         ),
         amount_in=0,

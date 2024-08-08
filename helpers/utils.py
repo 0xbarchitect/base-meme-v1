@@ -91,5 +91,20 @@ def calculate_balance_storage_index(address, index):
         )
     )
 
+def calculate_allowance_storage_index(owner, spender, index):
+    return Web3.keccak(
+        hexstr=(
+            eth_utils.remove_0x_prefix(spender).rjust(64, "0")
+            + eth_utils.remove_0x_prefix(
+                Web3.keccak(
+                hexstr=(
+                    eth_utils.remove_0x_prefix(owner).rjust(64, "0")
+                    + 
+                    eth_utils.remove_0x_prefix(hex(index)).rjust(64,'0')
+                )
+            ).hex())   
+        )
+    )
+
 def rpad_int(amount):
     return "0x" + eth_utils.remove_0x_prefix(hex(amount)).rjust(64,'0')

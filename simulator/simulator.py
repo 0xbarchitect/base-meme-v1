@@ -15,7 +15,8 @@ from library import Singleton
 from helpers.decorators import timer_decorator, async_timer_decorator
 from helpers.utils import load_contract_bin, encode_address, encode_uint, func_selector, \
                             decode_address, decode_pair_reserves, decode_int, load_router_contract, \
-                            load_abi, calculate_next_block_base_fee, calculate_balance_storage_index, rpad_int
+                            load_abi, calculate_next_block_base_fee, calculate_balance_storage_index, rpad_int, \
+                            calculate_allowance_storage_index
 
 from data import BlockData, SimulationResult, Pair
 import eth_utils
@@ -48,53 +49,61 @@ class Simulator:
     @timer_decorator
     def inspect_token_by_transfer(self, token, amount):
         try:
-            balance_index = None
-            for idx in [0,1]:
-                storage_index = calculate_balance_storage_index(self.signer,idx)
-                logging.debug(f"storage index {storage_index.hex()}")
-
-                #result = self.w3.eth.get_storage_at(pair.token, calculate_balance_storage_index(os.environ.get('SIGNER_ADDRESS'),0))
-                #print(f"balance by get storage {Web3.to_int(hexstr=result.hex())}")
-
-                result = self.w3.eth.call({
-                    'from': self.signer,
-                    'to': token,
-                    'data': bytes.fromhex(
-                        func_selector('balanceOf(address)') + encode_address(self.signer)
-                    )
-                },'latest', {
-                    token: {
-                        'stateDiff': {
-                            storage_index.hex(): hex(amount),
-                        }
-                    }
-                })
-                logging.debug(f"balance call contract {Web3.to_int(result)}")
-                if Web3.to_int(result) == amount:
-                    logging.info(f"found balance index {idx}")
-                    balance_index = storage_index
-                    break
-
-            if balance_index is None:
-                raise Exception("not found storage index")
+            balance_index = calculate_balance_storage_index(self.signer,0)
+            allowance_index = calculate_allowance_storage_index(self.signer, self.inspector.address,1)
             
+            # result = self.w3.eth.call({
+            #     'from': self.signer,
+            #     'to': token,
+            #     'data': bytes.fromhex(
+            #         func_selector('transfer(address,uint256)') + encode_address(self.inspector.address) + encode_uint(amount)
+            #     )
+            # }, 'latest', {
+            #     token: {
+            #         'stateDiff': {
+            #             balance_index.hex(): hex(amount),
+            #         }
+            #     }
+            # })
+            # logging.info(f"transfer result {Web3.to_int(result)}")
+
+            # result = self.w3.eth.call({
+            #     'from': self.signer,
+            #     'to': token,
+            #     'data': bytes.fromhex(
+            #         func_selector('allowance(address,address)') + encode_address(self.signer) + encode_address(self.inspector.address)
+            #     )
+            # }, 'latest', {
+            #     token: {
+            #         'stateDiff': {
+            #             balance_index.hex(): hex(amount),
+            #             allowance_index.hex(): hex(amount),
+            #         }
+            #     }
+            # })
+            # logging.info(f"allowance result {Web3.to_int(result)}")
+
             result = self.w3.eth.call({
                 'from': self.signer,
-                'to': token,
+                'to': self.inspector.address,
                 'data': bytes.fromhex(
-                    func_selector('transfer(address,uint256)') + encode_address(self.inspector.address) + encode_uint(1000)
+                    func_selector('inspect_transfer(address,uint256)') + encode_address(token) + encode_uint(Web3.to_wei(amount, 'ether'))
                 )
             }, 'latest', {
                 token: {
                     'stateDiff': {
-                        storage_index.hex(): hex(amount),
+                        balance_index.hex(): hex(Web3.to_wei(amount, 'ether')),
+                        allowance_index.hex(): hex(Web3.to_wei(amount, 'ether')),
                     }
                 }
             })
-            logging.info(f"transfer result {Web3.to_int(result)}")
 
-            if Web3.to_int(result) == 1:
-                return amount
+            logging.info(f"inspect_transfer result {Web3.from_wei(Web3.to_int(result), 'ether')}")
+
+            amount_out=Web3.from_wei(Web3.to_int(result), 'ether')
+            slippage=(Decimal(amount_out)-Decimal(amount))/Decimal(amount)*Decimal(100)
+
+            return (amount, amount_out, slippage, amount)
         except Exception as e:
             logging.error(f"inspect token {token} failed with error {e}")
             return None
@@ -209,11 +218,12 @@ if __name__ == '__main__':
                             )
     
     result=simulator.inspect_pair(Pair(
-        address='0x6120401158c8344837b348c4dEF8E2c805d34ADC',
-        token='0x1c06075012F4daB32E6D16E084149bFa72805CC5',
-        token_index=0,
+        address='0x889403197f40084595F3dD1De91F7bc4937EFC93',
+        #token='0xD56f44436122D4bfc898c3D3f85D177BF62426A8',
+        token='0x7555765Ac4b0975341fF7ec076ab361b19ADC56c',
+        token_index=1,
         reserve_token=0,
         reserve_eth=0
-    ), 0.001)
+    ), 0.001, swap=True)
 
     logging.info(f"Simulation result {result}")
