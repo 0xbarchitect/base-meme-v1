@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from console.models import Block, Transaction, Pair, Position, PositionTransaction
+from console.models import Block, Transaction, Pair, Position, PositionTransaction, BlackList
 
 class ConsoleAdminSite(admin.AdminSite):
     index_title = "Console"
@@ -73,9 +73,21 @@ class PositionAdmin(FullPermissionModelAdmin):
         <button><a class="btn" href="/admin/console/position/{obj.id}/change/">Edit</a></button>&emsp;
         """)
     
+class BlacklistAdmin(FullPermissionModelAdmin):
+    list_filter = ['is_deleted']
+    list_display = ('id', 'reserve_eth', 'buttons')
+    fields = ('reserve_eth',)
+    
+    @admin.display(description='Actions')
+    def buttons(self, obj):
+        return format_html(f"""
+        <button><a class="btn" href="/admin/console/blacklist/{obj.id}/change/">Edit</a></button>&emsp;
+        """)
+    
 admin_site = ConsoleAdminSite(name="console_admin")
 
 admin_site.register(Block, BlockAdmin)
 admin_site.register(Transaction, TransactionAdmin)
 admin_site.register(Pair, PairAdmin)
 admin_site.register(Position, PositionAdmin)
+admin_site.register(BlackList, BlacklistAdmin)

@@ -20,15 +20,17 @@ from executor import BuySellExecutor
 from reporter import Reporter
 from helpers import load_abi, timer_decorator, calculate_price, calculate_next_block_base_fee
 
-from data import ExecutionOrder, SimulationResult, ExecutionAck, Position, TxStatus, ReportData, ReportDataType
+from data import ExecutionOrder, SimulationResult, ExecutionAck, Position, TxStatus, \
+                    ReportData, ReportDataType, BlockData, Pair
 
 # global variables
 glb_fullfilled = 0
 glb_liquidated = False
 glb_watchlist = []
 glb_inventory = []
+glb_blacklist = []
 glb_daily_pnl = (datetime.now(), 0)
-glb_auto_run = True # TODO
+glb_auto_run = True
 glb_lock = threading.Lock()
 
 # load config
@@ -243,8 +245,16 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
 @timer_decorator
 def simulate(pairs) -> SimulationResult:
     def inspect_pair(pair) -> SimulationResult:
+        global glb_blacklist
+
         if pair.reserve_eth<RESERVE_ETH_MIN_THRESHOLD or pair.reserve_eth>RESERVE_ETH_MAX_THRESHOLD:
             return None
+        
+        logging.debug(f"assert {pair.reserve_eth} with blacklist {glb_blacklist}")
+        for value in glb_blacklist:
+            if round(Decimal(pair.reserve_eth), 3) == round(value, 3):
+                logging.warning(f"reserve eth {round(pair.reserve_eth, 3)} is blacklisted")
+                return None
         
         simulator = Simulator(
             http_url=os.environ.get('HTTPS_URL'),
@@ -308,13 +318,14 @@ async def main():
     execution_broker = aioprocessing.AioQueue()
     execution_report = aioprocessing.AioQueue()
     report_broker = aioprocessing.AioQueue()
+    control_receiver = aioprocessing.AioQueue()
     
     # EXECUTION process
     p2 = Process(target=execution_process, args=(execution_broker,execution_report,))
     p2.start()
 
     # REPORTING process
-    reporter = Reporter(report_broker)
+    reporter = Reporter(report_broker, control_receiver)
 
     async def handle_execution_report():
         global glb_inventory
@@ -322,6 +333,7 @@ async def main():
         global glb_fullfilled
         global glb_liquidated
         global glb_daily_pnl
+        global glb_blacklist
 
         while True:
             report = await execution_report.coro_get()
@@ -370,13 +382,56 @@ async def main():
                                     glb_liquidated = False
                                     glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] - 100)
 
-                                    logging.info(f"MAIN remove {position} at index #{idx} from inventory, update PnL {glb_daily_pnl}")
+                                if report.pair.reserve_eth not in glb_blacklist:
+                                    with glb_lock:
+                                        glb_blacklist.append(report.pair.reserve_eth)
 
-    #await strategy(watching_broker, execution_broker)
+                                    report_broker.put(ReportData(
+                                        type=ReportDataType.BLACKLIST_ADDED,
+                                        data=[report.pair.reserve_eth]
+                                    ))
+                                    logging.warning(f"add {report.pair.reserve_eth} to blacklist")
+
+                                logging.info(f"MAIN remove {position} at index #{idx} from inventory, update PnL {glb_daily_pnl}")
+
+    async def handle_control_order():
+        global glb_blacklist
+        global glb_lock
+
+        while True:
+            command = await control_receiver.coro_get()
+
+            if command is not None and isinstance(command, ReportData) and command.type == ReportDataType.BLACKLIST_BOOTSTRAP:
+                with glb_lock:
+                    glb_blacklist=command.data
+
+                logging.info(f"MAIN bootstrap blacklist {glb_blacklist}")
+
+    # control_receiver.put(ReportData(
+    #     type=ReportDataType.BLACKLIST_BOOTSTRAP,
+    #     data=[14.95,19.95]
+    # ))
+
+    # watching_broker.put(BlockData(
+    #     block_number=1,
+    #     block_timestamp=1,
+    #     base_fee=5000,
+    #     gas_used=10**6,
+    #     gas_limit=10**6,
+    #     pairs=[Pair(
+    #         token='0xfoo',
+    #         token_index=1,
+    #         address='0xbar',
+    #         reserve_token=1,
+    #         reserve_eth=14.95,
+    #     )]
+    # ))
+
     await asyncio.gather(watching_process(watching_broker, watching_notifier),
                          strategy(watching_broker, execution_broker, report_broker, watching_notifier,),
                          handle_execution_report(),
                          reporter.run(),
+                         handle_control_order(),
                          )
 
 if __name__=="__main__":

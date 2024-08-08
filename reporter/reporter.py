@@ -16,17 +16,32 @@ from django.utils.timezone import make_aware
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "admin.settings")
 django.setup()
 
-from console.models import Block, Transaction, Position, PositionTransaction
+from console.models import Block, Transaction, Position, PositionTransaction, BlackList
 import console.models
 
 BUY_AMOUNT=float(os.environ.get('BUY_AMOUNT'))
 GAS_COST=2*10**-6
 
 class Reporter(metaclass=Singleton):
-    def __init__(self, receiver):
+    def __init__(self, receiver, sender):
         self.receiver = receiver
+        self.sender = sender
 
     async def run(self):
+        asyncio.gather(
+            await self.bootstrap(),
+            await self.listen_report(),
+        )
+
+    async def bootstrap(self):
+        blacklists=[Decimal(bl.reserve_eth) async for bl in BlackList.objects.filter(is_deleted=0).all()]
+        logging.info(f"push blacklist {blacklists} to main thread")
+        self.sender.put(ReportData(
+            type=ReportDataType.BLACKLIST_BOOTSTRAP,
+            data=blacklists
+        ))
+
+    async def listen_report(self):
         logging.info(f"REPORTER listen for report...")
         while True:
             report = await self.receiver.coro_get()
@@ -140,12 +155,24 @@ class Reporter(metaclass=Singleton):
             else:
                 logging.debug(f"position tx exists id #{position_tx.id}")
 
+        async def save_blacklist(data):
+            for bl in data:
+                blacklist = await BlackList.objects.filter(reserve_eth=bl).afirst()
+                if blacklist is None:
+                    blacklist = BlackList(reserve_eth=bl)
+                    await blacklist.asave()
+                    logging.info(f"REPORTER save {bl} to blacklist DB with id #{blacklist.id}")
+                else:
+                    logging.info(f"REPORTER blacklist {bl} exists")
+
         try:
             if report.type == ReportDataType.BLOCK:
                 await save_block(report)
             elif report.type == ReportDataType.EXECUTION:
                 if report.data is not None and isinstance(report.data, ExecutionAck):
                     await save_position(report.data)
+            elif report.type == ReportDataType.BLACKLIST_ADDED:
+                await save_blacklist(report.data)
             else:
                 raise Exception(f"report type {report.type} is unsupported")
             
@@ -159,9 +186,10 @@ if __name__ == '__main__':
 
     import aioprocessing
 
-    broker = aioprocessing.AioQueue()
+    receiver = aioprocessing.AioQueue()
+    sender = aioprocessing.AioQueue()
 
-    reporter = Reporter(broker)
+    reporter = Reporter(receiver, sender)
 
     # block
     # broker.put(ReportData(
@@ -183,24 +211,29 @@ if __name__ == '__main__':
     # ))
 
     # execution
-    broker.put(ReportData(
-        type = ReportDataType.EXECUTION,
-        data = ExecutionAck(
-            lead_block=1,
-            block_number=2,
-            tx_hash='0xabc',
-            tx_status=1,
-            pair=Pair(
-                token='0xfoo',
-                token_index=1,
-                address='0xbar',
-                reserve_eth=1,
-                reserve_token=1,
-            ),
-            amount_in=1,
-            amount_out=1000,
-            is_buy=True,
-        )
+    # receiver.put(ReportData(
+    #     type = ReportDataType.EXECUTION,
+    #     data = ExecutionAck(
+    #         lead_block=1,
+    #         block_number=2,
+    #         tx_hash='0xabc',
+    #         tx_status=1,
+    #         pair=Pair(
+    #             token='0xfoo', 
+    #             token_index=1,
+    #             address='0xbar',
+    #             reserve_eth=1,
+    #             reserve_token=1,
+    #         ),
+    #         amount_in=1,
+    #         amount_out=1000,
+    #         is_buy=True,
+    #     )
+    # ))
+
+    receiver.put(ReportData(
+        type=ReportDataType.BLACKLIST_ADDED,
+        data=[1.11,2.22,3.33]
     ))
 
     asyncio.run(reporter.run())

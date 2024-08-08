@@ -98,6 +98,18 @@ class PositionTransaction(models.Model):
     def __str__(self) -> str:
         return f"{self.pair}"
     
+class BlackList(models.Model):
+    class Meta():
+        db_table = 'blacklist'
 
+    id = models.BigAutoField(primary_key=True)
+    reserve_eth = models.FloatField(unique=True)
+
+    created_at = models.DateTimeField(null=True,auto_now_add=True)
+    updated_at = models.DateTimeField(null=True,auto_now=True)
+    is_deleted = models.IntegerField(null=True,default=0)
+
+    def __str__(self) -> str:
+        return f"{self.reserve_eth}"
     
 

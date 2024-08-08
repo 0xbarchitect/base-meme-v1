@@ -72,6 +72,8 @@ class ReportDataType(IntEnum):
     EXECUTION = 1
     WATCHLIST_ADDED = 2
     WATCHLIST_REMOVED = 3
+    BLACKLIST_BOOTSTRAP = 4
+    BLACKLIST_ADDED = 5
 
 class ReportData:
     def __init__(self, type, data) -> None:
