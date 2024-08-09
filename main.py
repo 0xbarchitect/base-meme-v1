@@ -43,8 +43,8 @@ BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/InspectBot.abi.j
 
 # simulation conditions
 WATCHING_ONLY=int(os.environ.get('WATCHING_ONLY', '0'))
-RESERVE_ETH_MIN_THRESHOLD=int(os.environ.get('RESERVE_ETH_MIN_THRESHOLD'))
-RESERVE_ETH_MAX_THRESHOLD=int(os.environ.get('RESERVE_ETH_MAX_THRESHOLD'))
+RESERVE_ETH_MIN_THRESHOLD=float(os.environ.get('RESERVE_ETH_MIN_THRESHOLD'))
+RESERVE_ETH_MAX_THRESHOLD=float(os.environ.get('RESERVE_ETH_MAX_THRESHOLD'))
 
 SIMULATION_AMOUNT = 0.001
 SLIPPAGE_MIN_THRESHOLD = 30 # in basis points
