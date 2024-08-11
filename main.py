@@ -137,21 +137,6 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
             logging.info(f"Hi, watching only =))...")
             continue
 
-        if glb_daily_pnl[1] < HARD_STOP_PNL_THRESHOLD:
-            with glb_lock:
-                glb_auto_run = False
-                logging.warning(f"MAIN stop auto run...")
-
-        if not glb_auto_run:
-            logging.info(f"MAIN auto-run is disabled")
-            continue
-
-        if glb_daily_pnl[0].strftime('%Y-%m-%d %H') != datetime.now().strftime('%Y-%m-%d %H'):
-            with glb_lock:
-                glb_daily_pnl = (datetime.now(), 0)
-                logging.info(f"MAIN reset daily pnl at time {glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}")
-
-
         if len(glb_inventory)>0:
             if not glb_liquidated:
                 for position in glb_inventory:
@@ -184,6 +169,20 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                                     is_buy=False,
                                 ))
         
+        if glb_daily_pnl[1] < HARD_STOP_PNL_THRESHOLD:
+            with glb_lock:
+                glb_auto_run = False
+                logging.warning(f"MAIN stop auto run...")
+
+        if not glb_auto_run:
+            logging.info(f"MAIN auto-run is disabled")
+            continue
+
+        if glb_daily_pnl[0].strftime('%Y-%m-%d %H') != datetime.now().strftime('%Y-%m-%d %H'):
+            with glb_lock:
+                glb_daily_pnl = (datetime.now(), 0)
+                logging.info(f"MAIN reset daily pnl at time {glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}")
+
         if len(glb_watchlist)>0:
             logging.info(f"MAIN watching list {len(glb_watchlist)}")
 
