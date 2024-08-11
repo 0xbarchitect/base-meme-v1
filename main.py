@@ -43,6 +43,8 @@ BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/InspectBot.abi.j
 
 # simulation conditions
 WATCHING_ONLY=int(os.environ.get('WATCHING_ONLY', '0'))
+BLACKLIST_ENABLE=int(os.environ.get('BLACKLIST_ENABLE', '0'))
+
 RESERVE_ETH_MIN_THRESHOLD=float(os.environ.get('RESERVE_ETH_MIN_THRESHOLD'))
 RESERVE_ETH_MAX_THRESHOLD=float(os.environ.get('RESERVE_ETH_MAX_THRESHOLD'))
 
@@ -250,11 +252,12 @@ def simulate(pairs) -> SimulationResult:
         if pair.reserve_eth<RESERVE_ETH_MIN_THRESHOLD or pair.reserve_eth>RESERVE_ETH_MAX_THRESHOLD:
             return None
         
-        logging.debug(f"assert {pair.reserve_eth} with blacklist {glb_blacklist}")
-        for value in glb_blacklist:
-            if round(Decimal(pair.reserve_eth), 3) == round(value, 3):
-                logging.warning(f"reserve eth {round(pair.reserve_eth, 3)} is blacklisted")
-                return None
+        if BLACKLIST_ENABLE==1:
+            logging.debug(f"assert {pair.reserve_eth} with blacklist {glb_blacklist}")
+            for value in glb_blacklist:
+                if round(Decimal(pair.reserve_eth), 3) == round(value, 3):
+                    logging.warning(f"reserve eth {round(pair.reserve_eth, 3)} is blacklisted")
+                    return None
         
         simulator = Simulator(
             http_url=os.environ.get('HTTPS_URL'),
