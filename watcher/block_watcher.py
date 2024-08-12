@@ -73,7 +73,9 @@ class BlockWatcher(metaclass=Singleton):
 
                     pairs = self.filter_log_in_block(block_number, block_timestamp)
 
-                    logging.debug(f"found pairs {pairs}")
+                    logging.debug(f"WATCHER found pairs {pairs}")
+                    
+                    # watchlist buysell
                     for pair in pairs:
                         if pair.reserve_eth>RESERVE_ETH_MIN_THRESHOLD and pair.reserve_eth<RESERVE_ETH_MAX_THRESHOLD and len(self.watchlist)<WATCHLIST_CAPACITY:
                             with glb_lock:

@@ -67,8 +67,8 @@ MAX_PRIORITY_FEE_PER_GAS = 10**9
 GAS_COST = 2*10**-6
 
 # liquidation conditions
-TAKE_PROFIT_PERCENTAGE = 50
-STOP_LOSS_PERCENTAGE = -10
+TAKE_PROFIT_PERCENTAGE = 20
+STOP_LOSS_PERCENTAGE = -15
 HOLD_MAX_DURATION_SECONDS=int(os.environ.get('HOLD_MAX_DURATION_SECONDS'))
 HARD_STOP_PNL_THRESHOLD=int(os.environ.get('HARD_STOP_PNL_THRESHOLD'))
 
@@ -222,8 +222,10 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                         logging.warning(f"MAIN remove pair {pair} from watchlist at index #{idx} due to simulation failed")
 
 
+        #if  len(block_data.pairs)>0:
         if  len(block_data.watchlist)>0:
             if len(glb_watchlist)<WATCHLIST_CAPACITY:
+                # watchlist buy/sell still unavailable
                 simulated_pairs=[]
                 for pair in block_data.watchlist:
                     if pair.has_buy and pair.has_sell:
