@@ -202,13 +202,13 @@ class BlockWatcher(metaclass=Singleton):
                                     for pair in self.watchlist:
                                         if pair.address == contract:
                                             logging.info(f"{pair} swap event {log}")
-                                            if pair.token_index == 0 and Web3.from_wei(log['args']['amount1In'])>0 and Web3.from_wei(log['args']['amount0Out'])>0:
+                                            if pair.token_index == 0 and Web3.from_wei(log['args']['amount1In'], 'ether')>0 and Web3.from_wei(log['args']['amount0Out'], 'ether')>0:
                                                 pair.has_buy = True
-                                            elif pair.token_index == 0 and Web3.from_wei(log['args']['amount0In'])>0 and Web3.from_wei(log['args']['amount1Out'])>0:
+                                            elif pair.token_index == 0 and Web3.from_wei(log['args']['amount0In'], 'ether')>0 and Web3.from_wei(log['args']['amount1Out'], 'ether')>0:
                                                 pair.has_sell = True
-                                            elif pair.token_index == 1 and Web3.from_wei(log['args']['amount0In'])>0 and Web3.from_wei(log['args']['amount1Out'])>0:
+                                            elif pair.token_index == 1 and Web3.from_wei(log['args']['amount0In'], 'ether')>0 and Web3.from_wei(log['args']['amount1Out'], 'ether')>0:
                                                 pair.has_buy = True
-                                            elif pair.token_index == 1 and Web3.from_wei(log['args']['amount1In'])>0 and Web3.from_wei(log['args']['amount0Out'])>0:
+                                            elif pair.token_index == 1 and Web3.from_wei(log['args']['amount1In'], 'ether')>0 and Web3.from_wei(log['args']['amount0Out'], 'ether')>0:
                                                 pair.has_sell = True
 
                 except Exception as e:
