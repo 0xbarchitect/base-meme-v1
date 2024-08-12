@@ -74,6 +74,8 @@ class Position(models.Model):
     sell_price = models.FloatField(null=True, default=0)
     liquidation_attempts = models.IntegerField(null=True, default=0)
     pnl = models.FloatField(null=True, default=0)
+    signer = models.CharField(max_length=42, null=True)
+    bot = models.CharField(max_length=42, null=True)
 
     created_at = models.DateTimeField(null=True,auto_now_add=True)
     updated_at = models.DateTimeField(null=True,auto_now=True)

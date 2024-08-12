@@ -45,7 +45,7 @@ class Reporter(metaclass=Singleton):
         logging.info(f"REPORTER listen for report...")
         while True:
             report = await self.receiver.coro_get()
-            logging.info(f"reporter receive {report}")
+            logging.info(f"REPORTER receive {report}")
 
             await self.save_to_db(report)
 
@@ -126,6 +126,8 @@ class Reporter(metaclass=Singleton):
                     sell_price=Decimal(execution_ack.amount_out)/Decimal(execution_ack.amount_in) if execution_ack.amount_in>0 and not execution_ack.is_buy else 0,
                     liquidation_attempts=0,
                     pnl=0,
+                    signer=execution_ack.signer.lower() if execution_ack.signer is not None else None,
+                    bot=execution_ack.bot.lower() if execution_ack.bot is not None else None,
                 )
                 await position.asave()
                 logging.debug(f"position saved id #{position.id}")

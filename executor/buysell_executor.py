@@ -25,84 +25,43 @@ class BuySellExecutor(BaseExecutor):
         self.erc20_abi = erc20_abi
         self.pair_abi = pair_abi
 
-        self.bot = None
-        if bot is not None and bot_abi is not None:
-            self.bot = self.w3.eth.contract(address=bot, abi=bot_abi)
+        self.bot = []
+        if len(bot)>0 and bot_abi is not None:
+            self.bot = [self.w3.eth.contract(address=bot_address, abi=bot_abi) for bot_address in bot]
+        
+        logging.info(f"EXECUTOR bots {self.bot}")
 
     @timer_decorator
     def execute(self, account_id, lead_block, is_buy, pair, amount_in, amount_out_min, deadline):
-        def prepare_tx_bot(signer, nonce):
+        def prepare_tx_bot(signer, bot, nonce):
             tx = None            
             if is_buy:
-                tx = self.bot.functions.buy(pair.token, deadline).build_transaction({
+                tx = bot.functions.buy(pair.token, deadline).build_transaction({
                     "from": signer,
                     "nonce": nonce,
                     "gas": self.gas_limit,
                     "value": Web3.to_wei(amount_in, 'ether'),
                 })
             else:
-                tx = self.bot.functions.sell(pair.token, signer, deadline).build_transaction({
+                tx = bot.functions.sell(pair.token, signer, deadline).build_transaction({
                     "from": signer,
                     "nonce": nonce,
                     "gas": self.gas_limit,
                 })
 
             return tx
-
-        def prepare_tx_eoa(signer, nonce, priv_key):
-            tx = None
-
-            if is_buy:
-                tx = self.router.functions.swapExactETHForTokens(
-                    Web3.to_wei(amount_out_min, 'ether'),
-                    [self.weth, pair.token],
-                    signer,
-                    deadline).build_transaction({
-                        "from": signer,
-                        "nonce": nonce,
-                        "gas": self.gas_limit,
-                        "value": Web3.to_wei(amount_in, 'ether')
-                        })
-            else:
-                # allowance
-                token_contract = self.w3.eth.contract(address=pair.token, abi=self.erc20_abi)
-                tx = token_contract.functions.approve(self.router.address, Web3.to_wei(10**12, 'ether')).build_transaction({'from': signer, 'nonce': nonce})
-
-                tx_signed = self.w3.eth.account.sign_transaction(tx, priv_key)
-                tx_hash = self.w3.eth.send_raw_transaction(tx_signed.rawTransaction)
-                tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-
-                logging.info(f"{signer} approve token for router {self.router.address} status {tx_receipt['status']}")
-
-                if tx_receipt['status'] != TxStatus.SUCCESS:
-                    raise Exception(f"token {pair.token} allowance failed")
-
-                tx = self.router.functions.swapExactTokensForETH(
-                    Web3.to_wei(amount_in, 'ether'),
-                    Web3.to_wei(amount_out_min, 'ether'),            
-                    [pair.token, self.weth],
-                    signer,
-                    deadline).build_transaction({
-                        "from": signer,
-                        "nonce": nonce+1,
-                        "gas": self.gas_limit,
-                        })
-                
-            return tx
+        
+        signer = self.accounts[account_id].w3_account.address
+        priv_key = self.accounts[account_id].private_key
+        bot = self.bot[account_id]
 
         try:
             logging.info(f"account address {self.accounts[account_id].w3_account.address} in {amount_in} outMin {amount_out_min} deadline {deadline} isBuy {is_buy}")
 
-            signer = self.accounts[account_id].w3_account.address
-            priv_key = self.accounts[account_id].private_key
-
             # get nonce onchain
             nonce = self.w3.eth.get_transaction_count(signer)
 
-            if self.bot is not None:
-                tx = prepare_tx_bot(signer, nonce)
-            else:
-                tx = prepare_tx_eoa(signer, nonce, priv_key)
+            tx = prepare_tx_bot(signer, bot, nonce)
             
             if tx is None:
                 raise Exception(f"create tx failed")
@@ -139,14 +98,16 @@ class BuySellExecutor(BaseExecutor):
                 amount_in=amount_in,
                 amount_out=amount_out,
                 is_buy=is_buy,
+                signer=signer,
+                bot=bot.address,
             )
 
-            logging.info(f"execution ack {ack}")
+            logging.info(f"EXECUTOR ack {ack}")
             self.report_sender.put(ack)
 
             return
         except Exception as e:
-            logging.error(f"execute order {pair} amountIn {amount_in} isBuy {is_buy} catch exception {e}")
+            logging.error(f"EXECUTOR order {pair} amountIn {amount_in} isBuy {is_buy} catch exception {e}")
 
         ack = ExecutionAck(
             lead_block=lead_block,
@@ -157,9 +118,11 @@ class BuySellExecutor(BaseExecutor):
             amount_in=amount_in,
             amount_out=0,
             is_buy=is_buy,
+            signer=signer,
+            bot=bot.address,
         )
 
-        logging.info(f"failed execution ack {ack}")
+        logging.info(f"EXECUTOR failed execution ack {ack}")
         self.report_sender.put(ack)
 
     async def run(self):
@@ -168,20 +131,43 @@ class BuySellExecutor(BaseExecutor):
         counter = 0
         while True:
             execution_data = await self.order_receiver.coro_get()
-            counter += 1
-            logging.info(f"receive execution order #{counter} {execution_data.block_number} {execution_data.block_timestamp} {execution_data.pair} {execution_data.amount_in} {execution_data.amount_out_min}")
 
-            deadline = execution_data.block_timestamp + self.deadline_delay if execution_data.block_timestamp > 0 else self.get_block_timestamp() + self.deadline_delay
-            
-            future = executor.submit(self.execute, 
-                                     (counter - 1) % len(self.accounts),
-                                     execution_data.block_number, 
-                                     execution_data.is_buy,
-                                     execution_data.pair,
-                                     execution_data.amount_in,
-                                     execution_data.amount_out_min, 
-                                     deadline,
-                                     )
+            if execution_data is not None and isinstance(execution_data, ExecutionOrder):
+                logging.info(f"EXECUTOR receive order #{counter} {execution_data}")
+                deadline = execution_data.block_timestamp + self.deadline_delay if execution_data.block_timestamp > 0 else self.get_block_timestamp() + self.deadline_delay
+                
+                if execution_data.signer is None:
+                    counter += 1
+                    future = executor.submit(self.execute, 
+                                            (counter - 1) % len(self.accounts),
+                                            execution_data.block_number,
+                                            execution_data.is_buy,
+                                            execution_data.pair,
+                                            execution_data.amount_in,
+                                            execution_data.amount_out_min, 
+                                            deadline,
+                                            )
+                else:
+                    idx = None
+                    for idx, acct in enumerate(self.accounts):
+                        if acct.w3_account.address.lower() == execution_data.signer.lower():
+                            id = idx
+                            break
+                    if idx is not None:
+                        future = executor.submit(self.execute,
+                            idx,
+                            execution_data.block_number,
+                            execution_data.is_buy,
+                            execution_data.pair,
+                            execution_data.amount_in,
+                            execution_data.amount_out_min, 
+                            deadline,
+                        )
+                    else:
+                        logging.error(f"EXECUTOR not found signer for order {execution_data}")
+            else:
+                logging.warning(f"invalid order {execution_data}")
+
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
@@ -214,7 +200,7 @@ if __name__ == "__main__":
         router_abi=ROUTER_ABI,
         erc20_abi=ERC20_ABI,
         pair_abi=PAIR_ABI,
-        bot=os.environ.get('INSPECTOR_BOT'),
+        bot=os.environ.get('INSPECTOR_BOT').split(','),
         bot_abi=BOT_ABI,
     )
 
@@ -223,24 +209,51 @@ if __name__ == "__main__":
     #     block_number=0, 
     #     block_timestamp=0, 
     #     pair=Pair(
-    #         address='0x2Fa2F254757f4144b9E7d675dcF8c87D9a13fa04',
-    #         token='0x129ff6eCaE004Df60765Ce3a3B89733E5341CB28',
-    #         token_index=0,
+    #         address='0x36F344CB80236a072516E04c9a1962D98A36a447',
+    #         token='0xC92ac7514057bE21789BF3662Ed7Ee645c0D402a',
+    #         token_index=1,
+    #     ) , 
+    #     amount_in=0.00001,
+    #     amount_out_min=0,
+    #     is_buy=True))
+    
+    # order_receiver.put(ExecutionOrder(
+    #     block_number=0, 
+    #     block_timestamp=0, 
+    #     pair=Pair(
+    #         address='0x36F344CB80236a072516E04c9a1962D98A36a447',
+    #         token='0xC92ac7514057bE21789BF3662Ed7Ee645c0D402a',
+    #         token_index=1,
+    #     ) , 
+    #     amount_in=0.00001,
+    #     amount_out_min=0,
+    #     is_buy=True))
+    
+    # order_receiver.put(ExecutionOrder(
+    #     block_number=0, 
+    #     block_timestamp=0, 
+    #     pair=Pair(
+    #         address='0x36F344CB80236a072516E04c9a1962D98A36a447',
+    #         token='0xC92ac7514057bE21789BF3662Ed7Ee645c0D402a',
+    #         token_index=1,
     #     ) , 
     #     amount_in=0.00001,
     #     amount_out_min=0,
     #     is_buy=True))
     
     order_receiver.put(ExecutionOrder(
-        block_number=0, 
-        block_timestamp=0, 
+        block_number=0,
+        block_timestamp=0,
         pair=Pair(
-            address='0x588Ca67e19926370cF091A8C1930A5AfB770e4b3',
-            token='0x1B4a89A896E1471382CB172b1849BB2c91A4a522',
-            token_index=0,
+            address='0x36F344CB80236a072516E04c9a1962D98A36a447',
+            token='0xC92ac7514057bE21789BF3662Ed7Ee645c0D402a',
+            token_index=1,
         ),
         amount_in=0,
         amount_out_min=0,
-        is_buy=False))
+        is_buy=False,
+        signer='0xe980767788694BFbD5934a51E508c1987bD29cD4',
+        bot='0xBCd8d2824B815285b1E8E8574737fCb911efeAE4',        
+        ))
 
     asyncio.run(executor.run())

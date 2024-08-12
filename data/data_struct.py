@@ -19,10 +19,7 @@ class Pair:
         return 0
 
     def  __str__(self) -> str:
-        return f"""
-        Pair {self.address} token {self.token} tokenIndex {self.token_index} reserve_token {self.reserve_token} reserve_eth {self.reserve_eth} createdAt {self.created_at} 
-        inspectAttempts {self.inspect_attempts}" hasBuy {self.has_buy} hasSell {self.has_sell}
-        """
+        return f"Pair {self.address} token {self.token} tokenIndex {self.token_index} reserve_token {self.reserve_token} reserve_eth {self.reserve_eth} createdAt {self.created_at} inspectAttempts {self.inspect_attempts} hasBuy {self.has_buy} hasSell {self.has_sell}"
 
 class BlockData:
     def __init__(self, block_number, block_timestamp, base_fee, gas_used, gas_limit, pairs=[], inventory=[], watchlist=[]) -> None:
@@ -42,21 +39,21 @@ class BlockData:
         """
 
 class ExecutionOrder:
-    def __init__(self, block_number, block_timestamp, pair: Pair, amount_in, amount_out_min, is_buy) -> None:
+    def __init__(self, block_number, block_timestamp, pair: Pair, amount_in, amount_out_min, is_buy, signer=None, bot=None) -> None:
         self.block_number = block_number
         self.block_timestamp = block_timestamp
         self.pair = pair
         self.amount_in = amount_in
         self.amount_out_min = amount_out_min
         self.is_buy = is_buy
+        self.signer = signer
+        self.bot = bot
 
     def __str__(self) -> str:
-        return f"""
-        Execution order block #{self.block_number} token {self.token} amountIn {self.amount_in} amountOutMin {self.amount_out_min} isBuy {self.is_buy}
-        """
+        return f"Execution order block #{self.block_number} pair {self.pair} amountIn {self.amount_in} amountOutMin {self.amount_out_min} signer {self.signer} bot {self.bot} isBuy {self.is_buy}"
     
 class ExecutionAck:
-    def __init__(self, lead_block, block_number, tx_hash, tx_status, pair: Pair, amount_in, amount_out, is_buy) -> None:
+    def __init__(self, lead_block, block_number, tx_hash, tx_status, pair: Pair, amount_in, amount_out, is_buy, signer=None, bot=None) -> None:
         self.lead_block = lead_block
         self.block_number = block_number
         self.tx_hash = tx_hash
@@ -65,11 +62,13 @@ class ExecutionAck:
         self.amount_in = amount_in
         self.amount_out = amount_out
         self.is_buy = is_buy
+        self.signer = signer
+        self.bot = bot
 
     def __str__(self) -> str:
         return f"""
         Execution acknowledgement lead #{self.lead_block} realized #{self.block_number} tx {self.tx_hash} status {self.tx_status}
-        Pair {self.pair} AmountIn {self.amount_in} AmountOut {self.amount_out} IsBuy {self.is_buy}
+        Pair {self.pair} AmountIn {self.amount_in} AmountOut {self.amount_out} Signer {self.signer} Bot {self.bot} IsBuy {self.is_buy}
         """
 from enum import IntEnum
 
@@ -122,15 +121,17 @@ class FilterLogs:
         return f"FilterLogs type {self.type} data {self.data}"
     
 class Position:
-    def __init__(self, pair, amount, buy_price, start_time, pnl=0) -> None:
+    def __init__(self, pair, amount, buy_price, start_time, pnl=0, signer=None, bot=None) -> None:
         self.pair = pair
         self.amount = amount
         self.buy_price = buy_price
         self.start_time = start_time
         self.pnl = pnl
+        self.signer = signer
+        self.bot = bot
 
     def __str__(self) -> str:
-        return f"Position {self.pair} amount {self.amount} buyPrice {self.buy_price} startTime {self.start_time} pnl {self.pnl}"
+        return f"Position {self.pair} amount {self.amount} buyPrice {self.buy_price} startTime {self.start_time} signer {self.signer} bot {self.bot} pnl {self.pnl}"
     
 class TxStatus(IntEnum):
     FAILED = 0

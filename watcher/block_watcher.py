@@ -62,10 +62,14 @@ class BlockWatcher(metaclass=Singleton):
                     logging.debug(f"block number {block_number} timestamp {block_timestamp}")
 
                     for idx,pair in enumerate(self.watchlist):
-                        if block_timestamp-pair.created_at>BUYSELL_INSPECT_INTERVAL_SECONDS:
+                        if (block_timestamp - pair.created_at)>BUYSELL_INSPECT_INTERVAL_SECONDS:
                             with glb_lock:
                                 self.watchlist.pop(idx)
                             logging.info(f"WATCHER remove {pair} from watchlist due to timeout")
+                        elif pair.has_buy and pair.has_sell:
+                            with glb_lock:
+                                self.watchlist.pop(idx)
+                            logging.info(f"WATCHER remove {pair} from watchlist caused by qualification both buy/sell")
 
                     pairs = self.filter_log_in_block(block_number, block_timestamp)
 
@@ -198,10 +202,9 @@ class BlockWatcher(metaclass=Singleton):
                         elif result.type == FilterLogsType.SWAP:
                             if result.data != ():
                                 for log in result.data:
-
                                     for pair in self.watchlist:
                                         if pair.address == contract:
-                                            logging.info(f"{pair} swap event {log}")
+                                            logging.debug(f"{pair} swap event {log}")
                                             if pair.token_index == 0 and Web3.from_wei(log['args']['amount1In'], 'ether')>0 and Web3.from_wei(log['args']['amount0Out'], 'ether')>0:
                                                 pair.has_buy = True
                                             elif pair.token_index == 0 and Web3.from_wei(log['args']['amount0In'], 'ether')>0 and Web3.from_wei(log['args']['amount1Out'], 'ether')>0:

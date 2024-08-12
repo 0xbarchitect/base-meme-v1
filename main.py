@@ -167,6 +167,8 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                                     amount_in=position.amount,
                                     amount_out_min=0,
                                     is_buy=False,
+                                    signer=position.signer,
+                                    bot=position.bot,
                                 ))
         
         if glb_daily_pnl[1] < HARD_STOP_PNL_THRESHOLD:
@@ -206,7 +208,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                         if pair.inspect_attempts >= MAX_INSPECT_ATTEMPTS:   
                             with glb_lock:
                                 glb_watchlist.pop(idx)
-                                
+
                             logging.warning(f"remove pair {pair} from watching list at index #{idx} caused by reaching max attempts {MAX_INSPECT_ATTEMPTS}")
                             send_exec_order(block_data, pair)
 
@@ -220,25 +222,30 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                         logging.warning(f"MAIN remove pair {pair} from watchlist at index #{idx} due to simulation failed")
 
 
-        if  len(block_data.pairs)>0:
+        if  len(block_data.watchlist)>0:
             if len(glb_watchlist)<WATCHLIST_CAPACITY:
-                simulation_results = simulate(block_data.pairs)
-                logging.debug(f"SIMULATION result {simulation_results}")
+                simulated_pairs=[]
+                for pair in block_data.watchlist:
+                    if pair.has_buy and pair.has_sell:
+                        simulated_pairs.append(pair)
+                        logging.info(f"MAIN add {pair} to simulation")
 
-                for result in simulation_results:
-                    if MAX_INSPECT_ATTEMPTS > 1:
-                        with glb_lock:
-                            # append to watchlist
-                            pair=result.pair
-                            pair.inspect_attempts=1
+                if len(simulated_pairs)>0:
+                    simulation_results = simulate(simulated_pairs)
+                    logging.debug(f"SIMULATION result {simulation_results}")
 
-                            glb_watchlist.append(pair)
+                    for result in simulation_results:
+                        if MAX_INSPECT_ATTEMPTS > 1:
+                            with glb_lock:
+                                # append to watchlist
+                                pair=result.pair
+                                pair.inspect_attempts=1
+                                glb_watchlist.append(pair)
 
                             logging.info(f"MAIN add pair {pair} to watchlist")
-                    else:
-                        # send order immediately
-                        send_exec_order(block_data, result.pair)
-
+                        else:
+                            # send order immediately
+                            send_exec_order(block_data, result.pair)
             else:
                 logging.info(f"MAIN watchlist is already full capacity")
 
@@ -260,10 +267,10 @@ def simulate(pairs) -> SimulationResult:
         
         simulator = Simulator(
             http_url=os.environ.get('HTTPS_URL'),
-            signer=os.environ.get('SIGNER_ADDRESS'),
+            signer=os.environ.get('EXECUTION_ADDRESSES').split(',')[0],
             router_address=os.environ.get('ROUTER_ADDRESS'),
             weth=os.environ.get('WETH_ADDRESS'),
-            inspector=os.environ.get('INSPECTOR_BOT'),
+            inspector=os.environ.get('INSPECTOR_BOT').split(',')[0],
             pair_abi=PAIR_ABI,
             weth_abi=WETH_ABI,
             inspector_abi=BOT_ABI,
@@ -304,7 +311,7 @@ def execution_process(execution_broker, report_broker):
         router_abi=ROUTER_ABI,
         erc20_abi=ERC20_ABI,
         pair_abi=PAIR_ABI,
-        bot=os.environ.get('INSPECTOR_BOT'),
+        bot=os.environ.get('INSPECTOR_BOT').split(','),
         bot_abi=BOT_ABI,
     )
 
@@ -339,6 +346,8 @@ async def main():
 
         while True:
             report = await execution_report.coro_get()
+            logging.info(f"MAIN receive execution report {report}")
+
             if report is not None and isinstance(report, ExecutionAck):
                 # send execution report
                 report_broker.put(ReportData(
@@ -356,6 +365,8 @@ async def main():
                                 amount=report.amount_out,
                                 buy_price=calculate_price(report.amount_out, report.amount_in),
                                 start_time=int(time()),
+                                signer=report.signer,
+                                bot=report.bot,
                             ))
                             logging.info(f"MAIN append {report.pair} to inventory")
                     else:

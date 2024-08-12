@@ -34,8 +34,6 @@ class BaseExecutor(metaclass=Singleton):
         self.max_priority_fee_per_gas = max_priority_fee_per_gas
         self.deadline_delay = deadline_delay
 
-        #[self.funding_executor(account) for account in self.accounts]
-
         self.order_receiver = order_receiver
         self.report_sender = report_sender
 
@@ -47,29 +45,6 @@ class BaseExecutor(metaclass=Singleton):
             private_key,
             self.w3.eth.get_transaction_count(acct.address),
         )
-    
-    def funding_executor(self, account):
-        try:
-            logging.info(f"funding account {account.w3_account.address}...")
-
-            address = account.w3_account.address
-
-            # wavax
-            balance = self.w3.eth.get_balance(address)
-            if Web3.from_wei(balance, 'ether') < Decimal(MINIMUM_AVAX_BALANCE):
-                tx_hash = self.w3.eth.send_transaction({
-                    'from': self.treasury.address,
-                    'to': address,
-                    'value': Web3.to_wei(Decimal(MINIMUM_AVAX_BALANCE)*Decimal(1.5) - Web3.from_wei(balance, 'ether'), 'ether')
-                })
-                tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-                logging.info(f"fund AVAX to account {address} succesfully")
-            else:
-                logging.info(f"account {address} AVAX balance is sufficient")
-
-        except Exception as e:
-            logging.error(f"funding account {address} error {e}")
-            raise e
 
     def get_block_timestamp(self):
         block = self.w3.eth.get_block('latest')        

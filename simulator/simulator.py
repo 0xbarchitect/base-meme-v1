@@ -208,10 +208,10 @@ if __name__ == '__main__':
     FEE_BPS = 25
 
     simulator = Simulator(os.environ.get('HTTPS_URL'),
-                            os.environ.get('SIGNER_ADDRESS'),
+                            os.environ.get('EXECUTION_ADDRESSES').split(',')[2],
                             os.environ.get('ROUTER_ADDRESS'),
                             os.environ.get('WETH_ADDRESS'),
-                            os.environ.get('INSPECTOR_BOT'),
+                            os.environ.get('INSPECTOR_BOT').split(',')[2],
                             PAIR_ABI,
                             WETH_ABI,
                             INSPECTOR_ABI,

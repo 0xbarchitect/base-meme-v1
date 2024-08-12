@@ -63,9 +63,9 @@ class PositionAdmin(FullPermissionModelAdmin):
     inlines = [PositionTransactionInline]
 
     list_filter = ['is_deleted']
-    list_display = ('id', 'pair', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidated_at', 'liquidation_attempts', 'pnl', 'buttons')
-    fields = ('pair', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidated_at', 'liquidation_attempts', 'pnl',)
-    readonly_fields = ('pair', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidated_at', 'liquidation_attempts', 'pnl',)
+    list_display = ('id', 'pair', 'signer', 'bot', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidated_at', 'liquidation_attempts', 'pnl', 'buttons')
+    fields = ('pair', 'signer', 'bot', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidated_at', 'liquidation_attempts', 'pnl',)
+    readonly_fields = ('pair', 'signer', 'bot', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidated_at', 'liquidation_attempts', 'pnl',)
     
     @admin.display(description='Actions')
     def buttons(self, obj):
