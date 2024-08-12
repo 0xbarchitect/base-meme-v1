@@ -206,8 +206,8 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                         if pair.inspect_attempts >= MAX_INSPECT_ATTEMPTS:   
                             with glb_lock:
                                 glb_watchlist.pop(idx)
+                                
                             logging.warning(f"remove pair {pair} from watching list at index #{idx} caused by reaching max attempts {MAX_INSPECT_ATTEMPTS}")
-
                             send_exec_order(block_data, pair)
 
                 # remove simulation failed pair

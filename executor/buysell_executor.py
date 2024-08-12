@@ -235,9 +235,9 @@ if __name__ == "__main__":
         block_number=0, 
         block_timestamp=0, 
         pair=Pair(
-            address='0xc980Ee4683E76C8256aD7346B32C015917e4b31c',
-            token='0x7555765Ac4b0975341fF7ec076ab361b19ADC56c',
-            token_index=1,
+            address='0x588Ca67e19926370cF091A8C1930A5AfB770e4b3',
+            token='0x1B4a89A896E1471382CB172b1849BB2c91A4a522',
+            token_index=0,
         ),
         amount_in=0,
         amount_out_min=0,

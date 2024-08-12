@@ -19,6 +19,11 @@ from library import Singleton
 from data import BlockData, Pair, ExecutionAck, FilterLogs, FilterLogsType, ReportData, ReportDataType, TxStatus
 from helpers import async_timer_decorator, load_abi, timer_decorator
 
+RESERVE_ETH_MIN_THRESHOLD=float(os.environ.get('RESERVE_ETH_MIN_THRESHOLD'))
+RESERVE_ETH_MAX_THRESHOLD=float(os.environ.get('RESERVE_ETH_MAX_THRESHOLD'))
+BUYSELL_INSPECT_INTERVAL_SECONDS=int(os.environ.get('BUYSELL_INSPECT_INTERVAL_SECONDS'))
+
+WATCHLIST_CAPACITY=10
 glb_lock = threading.Lock()
 
 class BlockWatcher(metaclass=Singleton):
@@ -33,10 +38,13 @@ class BlockWatcher(metaclass=Singleton):
         self.pair_abi = pair_abi
 
         self.inventory = []
+        self.watchlist = []
         self.w3 = Web3(Web3.HTTPProvider(https_url))
         self.factory = self.w3.eth.contract(address=self.factory_address, abi=self.factory_abi)
 
     async def listen_block(self):
+        global glb_lock
+
         async for w3Async in AsyncWeb3.persistent_websocket(WebsocketProviderV2(self.wss_url)):
             try:
                 logging.info(f"websocket connected...")
@@ -53,9 +61,20 @@ class BlockWatcher(metaclass=Singleton):
 
                     logging.debug(f"block number {block_number} timestamp {block_timestamp}")
 
+                    for idx,pair in enumerate(self.watchlist):
+                        if block_timestamp-pair.created_at>BUYSELL_INSPECT_INTERVAL_SECONDS:
+                            with glb_lock:
+                                self.watchlist.pop(idx)
+                            logging.info(f"WATCHER remove {pair} from watchlist due to timeout")
+
                     pairs = self.filter_log_in_block(block_number, block_timestamp)
 
                     logging.debug(f"found pairs {pairs}")
+                    for pair in pairs:
+                        if pair.reserve_eth>RESERVE_ETH_MIN_THRESHOLD and pair.reserve_eth<RESERVE_ETH_MAX_THRESHOLD and len(self.watchlist)<WATCHLIST_CAPACITY:
+                            with glb_lock:
+                                self.watchlist.append(pair)
+                            logging.info(f"WATCHER add {pair} to watchlist")
 
                     self.block_broker.put(BlockData(
                         block_number,
@@ -65,6 +84,7 @@ class BlockWatcher(metaclass=Singleton):
                         gas_limit,
                         pairs,
                         self.inventory,
+                        self.watchlist,
                     ))
 
             except websockets.ConnectionClosed:
@@ -99,7 +119,7 @@ class BlockWatcher(metaclass=Singleton):
                             created_at=block_timestamp,
                         ))
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
                 future_to_pair = {executor.submit(self.get_reserves, pair.address): idx for idx,pair in enumerate(pairs)}
                 for future in concurrent.futures.as_completed(future_to_pair):
                     idx = future_to_pair[future]
@@ -127,14 +147,31 @@ class BlockWatcher(metaclass=Singleton):
                 type=FilterLogsType.SYNC,
                 data=sync_logs,
             )
+        
+        def filter_swap_log(pair, block_number) -> None:
+            pair_contract = self.w3.eth.contract(address=pair, abi=self.pair_abi)
+            sync_logs = pair_contract.events.Swap().get_logs(
+                fromBlock = block_number,
+                toBlock = block_number,
+            )
+
+            return FilterLogs(
+                type=FilterLogsType.SWAP,
+                data=sync_logs,
+            )
 
         pairs = []
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             future_to_contract = {executor.submit(filter_paircreated_log, block_number): self.factory.address}
+
             if len(self.inventory)>0:
                 for pair in self.inventory:
                     future_to_contract[executor.submit(filter_sync_log, pair.address, block_number)] = pair.address
+
+            if len(self.watchlist)>0:
+                for pair in self.watchlist:
+                    future_to_contract[executor.submit(filter_swap_log, pair.address, block_number)] = pair.address
 
             for future in concurrent.futures.as_completed(future_to_contract):
                 contract = future_to_contract[future]
@@ -151,12 +188,28 @@ class BlockWatcher(metaclass=Singleton):
                             if result.data != ():
                                 for log in result.data:
                                     logging.debug(f"sync {log}")
+
                                     for pair in self.inventory:
                                         if pair.address == contract:
                                             logging.info(f"update reserves for inventory {pair.address}")
                                             pair.reserve_token = Web3.from_wei(log['args']['reserve0'], 'ether') if pair.token_index==0 else Web3.from_wei(log['args']['reserve1'], 'ether')
                                             pair.reserve_eth = Web3.from_wei(log['args']['reserve1'], 'ether') if pair.token_index==0 else Web3.from_wei(log['args']['reserve0'], 'ether')
                             
+                        elif result.type == FilterLogsType.SWAP:
+                            if result.data != ():
+                                for log in result.data:
+
+                                    for pair in self.watchlist:
+                                        if pair.address == contract:
+                                            logging.info(f"{pair} swap event {log}")
+                                            if pair.token_index == 0 and Web3.from_wei(log['args']['amount1In'])>0 and Web3.from_wei(log['args']['amount0Out'])>0:
+                                                pair.has_buy = True
+                                            elif pair.token_index == 0 and Web3.from_wei(log['args']['amount0In'])>0 and Web3.from_wei(log['args']['amount1Out'])>0:
+                                                pair.has_sell = True
+                                            elif pair.token_index == 1 and Web3.from_wei(log['args']['amount0In'])>0 and Web3.from_wei(log['args']['amount1Out'])>0:
+                                                pair.has_buy = True
+                                            elif pair.token_index == 1 and Web3.from_wei(log['args']['amount1In'])>0 and Web3.from_wei(log['args']['amount0Out'])>0:
+                                                pair.has_sell = True
 
                 except Exception as e:
                     logging.error(f"contract {contract} error {e}")

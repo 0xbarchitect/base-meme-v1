@@ -218,9 +218,9 @@ if __name__ == '__main__':
                             )
     
     result=simulator.inspect_pair(Pair(
-        address='0xDcDe35A2cBc796B9377a93808Ae5f1cAC37D3936',
-        token='0x4736727071Be36ABA6322EE62cF6D5cC0B6BCa17',
-        token_index=1,
+        address='0x588Ca67e19926370cF091A8C1930A5AfB770e4b3',
+        token='0x1B4a89A896E1471382CB172b1849BB2c91A4a522',
+        token_index=0,
         reserve_token=0,
         reserve_eth=0
     ), 0.001, swap=True)

@@ -2,7 +2,7 @@ import os
 from decimal import Decimal
 
 class Pair:
-    def __init__(self, token, token_index, address, reserve_token=0, reserve_eth=0, created_at=0, inspect_attempts=0) -> None:
+    def __init__(self, token, token_index, address, reserve_token=0, reserve_eth=0, created_at=0, inspect_attempts=0, has_buy=False, has_sell=False) -> None:
         self.token = token
         self.token_index = token_index
         self.address = address
@@ -10,6 +10,8 @@ class Pair:
         self.reserve_eth = reserve_eth
         self.created_at = created_at
         self.inspect_attempts = inspect_attempts
+        self.has_buy = False
+        self.has_sell = False
 
     def price(self):
         if self.reserve_token != 0 and self.reserve_eth != 0:
@@ -17,10 +19,13 @@ class Pair:
         return 0
 
     def  __str__(self) -> str:
-        return f"Pair {self.address} token {self.token} tokenIndex {self.token_index} reserve_token {self.reserve_token} reserve_eth {self.reserve_eth} createdAt {self.created_at} inspectAttempts {self.inspect_attempts}"
+        return f"""
+        Pair {self.address} token {self.token} tokenIndex {self.token_index} reserve_token {self.reserve_token} reserve_eth {self.reserve_eth} createdAt {self.created_at} 
+        inspectAttempts {self.inspect_attempts}" hasBuy {self.has_buy} hasSell {self.has_sell}
+        """
 
 class BlockData:
-    def __init__(self, block_number, block_timestamp, base_fee, gas_used, gas_limit, pairs = [], inventory = []) -> None:
+    def __init__(self, block_number, block_timestamp, base_fee, gas_used, gas_limit, pairs=[], inventory=[], watchlist=[]) -> None:
         self.block_number = block_number
         self.block_timestamp = block_timestamp
         self.base_fee = base_fee
@@ -28,11 +33,12 @@ class BlockData:
         self.gas_limit = gas_limit
         self.pairs = pairs
         self.inventory = inventory
+        self.watchlist = watchlist
 
     def __str__(self) -> str:
         return f"""
         Block #{self.block_number} timestamp {self.block_timestamp} baseFee {self.base_fee} gasUsed {self.gas_used} gasLimit {self.gas_limit}
-        Pairs created {len(self.pairs)} Inventory {len(self.inventory)}
+        Pairs created {len(self.pairs)} Inventory {len(self.inventory)} Watchlist {len(self.watchlist)}
         """
 
 class ExecutionOrder:
@@ -105,6 +111,7 @@ class SimulationResult:
 class FilterLogsType(IntEnum):
     PAIR_CREATED = 0
     SYNC = 1
+    SWAP = 2
 
 class FilterLogs:
     def __init__(self, type: FilterLogsType, data) -> None:
