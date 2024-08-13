@@ -21,9 +21,7 @@ from helpers import async_timer_decorator, load_abi, timer_decorator
 
 RESERVE_ETH_MIN_THRESHOLD=float(os.environ.get('RESERVE_ETH_MIN_THRESHOLD'))
 RESERVE_ETH_MAX_THRESHOLD=float(os.environ.get('RESERVE_ETH_MAX_THRESHOLD'))
-BUYSELL_INSPECT_INTERVAL_SECONDS=int(os.environ.get('BUYSELL_INSPECT_INTERVAL_SECONDS'))
 
-WATCHLIST_CAPACITY=10
 glb_lock = threading.Lock()
 
 class BlockWatcher(metaclass=Singleton):
@@ -38,7 +36,6 @@ class BlockWatcher(metaclass=Singleton):
         self.pair_abi = pair_abi
 
         self.inventory = []
-        self.watchlist = []
         self.w3 = Web3(Web3.HTTPProvider(https_url))
         self.factory = self.w3.eth.contract(address=self.factory_address, abi=self.factory_abi)
 
@@ -61,26 +58,9 @@ class BlockWatcher(metaclass=Singleton):
 
                     logging.debug(f"block number {block_number} timestamp {block_timestamp}")
 
-                    for idx,pair in enumerate(self.watchlist):
-                        if (block_timestamp - pair.created_at)>BUYSELL_INSPECT_INTERVAL_SECONDS:
-                            with glb_lock:
-                                self.watchlist.pop(idx)
-                            logging.info(f"WATCHER remove {pair} from watchlist due to timeout")
-                        elif pair.has_buy and pair.has_sell:
-                            with glb_lock:
-                                self.watchlist.pop(idx)
-                            logging.info(f"WATCHER remove {pair} from watchlist caused by qualification both buy/sell")
-
                     pairs = self.filter_log_in_block(block_number, block_timestamp)
 
                     logging.debug(f"WATCHER found pairs {pairs}")
-                    
-                    # watchlist buysell
-                    for pair in pairs:
-                        if pair.reserve_eth>RESERVE_ETH_MIN_THRESHOLD and pair.reserve_eth<RESERVE_ETH_MAX_THRESHOLD and len(self.watchlist)<WATCHLIST_CAPACITY:
-                            with glb_lock:
-                                self.watchlist.append(pair)
-                            logging.info(f"WATCHER add {pair} to watchlist")
 
                     self.block_broker.put(BlockData(
                         block_number,
@@ -90,7 +70,6 @@ class BlockWatcher(metaclass=Singleton):
                         gas_limit,
                         pairs,
                         self.inventory,
-                        self.watchlist,
                     ))
 
             except websockets.ConnectionClosed:
@@ -175,10 +154,6 @@ class BlockWatcher(metaclass=Singleton):
                 for pair in self.inventory:
                     future_to_contract[executor.submit(filter_sync_log, pair.address, block_number)] = pair.address
 
-            if len(self.watchlist)>0:
-                for pair in self.watchlist:
-                    future_to_contract[executor.submit(filter_swap_log, pair.address, block_number)] = pair.address
-
             for future in concurrent.futures.as_completed(future_to_contract):
                 contract = future_to_contract[future]
                 try:
@@ -200,21 +175,6 @@ class BlockWatcher(metaclass=Singleton):
                                             logging.info(f"update reserves for inventory {pair.address}")
                                             pair.reserve_token = Web3.from_wei(log['args']['reserve0'], 'ether') if pair.token_index==0 else Web3.from_wei(log['args']['reserve1'], 'ether')
                                             pair.reserve_eth = Web3.from_wei(log['args']['reserve1'], 'ether') if pair.token_index==0 else Web3.from_wei(log['args']['reserve0'], 'ether')
-                            
-                        elif result.type == FilterLogsType.SWAP:
-                            if result.data != ():
-                                for log in result.data:
-                                    for pair in self.watchlist:
-                                        if pair.address == contract:
-                                            logging.debug(f"{pair} swap event {log}")
-                                            if pair.token_index == 0 and Web3.from_wei(log['args']['amount1In'], 'ether')>0 and Web3.from_wei(log['args']['amount0Out'], 'ether')>0:
-                                                pair.has_buy = True
-                                            elif pair.token_index == 0 and Web3.from_wei(log['args']['amount0In'], 'ether')>0 and Web3.from_wei(log['args']['amount1Out'], 'ether')>0:
-                                                pair.has_sell = True
-                                            elif pair.token_index == 1 and Web3.from_wei(log['args']['amount0In'], 'ether')>0 and Web3.from_wei(log['args']['amount1Out'], 'ether')>0:
-                                                pair.has_buy = True
-                                            elif pair.token_index == 1 and Web3.from_wei(log['args']['amount1In'], 'ether')>0 and Web3.from_wei(log['args']['amount0Out'], 'ether')>0:
-                                                pair.has_sell = True
 
                 except Exception as e:
                     logging.error(f"contract {contract} error {e}")
@@ -224,7 +184,7 @@ class BlockWatcher(metaclass=Singleton):
     async def listen_report(self):
         global glb_lock
 
-        def add_pair_to_watchlist(pair):
+        def add_pair_to_inventory(pair):
             # sync current reserves
             result = self.get_reserves(pair.address)
             logging.info(f"get reserves {pair} result {result}")
@@ -236,7 +196,7 @@ class BlockWatcher(metaclass=Singleton):
                 self.inventory.append(pair)
             logging.info(f"WATCHER add pair {pair} to watching {len(self.inventory)}")
 
-        def remove_pair_from_watchlist(pair):
+        def remove_pair_from_inventory(pair):
             for idx,pr in enumerate(self.inventory):
                 if pr.address == pair.address:
                     with glb_lock:
@@ -250,9 +210,9 @@ class BlockWatcher(metaclass=Singleton):
                 logging.info(f"WATCHER receive report {report}")
                 if report.is_buy and report.tx_status == TxStatus.SUCCESS:
                     if report.pair.address not in [pair.address for pair in self.inventory]:
-                        add_pair_to_watchlist(report.pair)
+                        add_pair_to_inventory(report.pair)
                 else:
-                    remove_pair_from_watchlist(report.pair)
+                    remove_pair_from_inventory(report.pair)
 
     
     async def main(self):

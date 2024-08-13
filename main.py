@@ -222,32 +222,23 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                         logging.warning(f"MAIN remove pair {pair} from watchlist at index #{idx} due to simulation failed")
 
 
-        #if  len(block_data.pairs)>0:
-        if  len(block_data.watchlist)>0:
+        if  len(block_data.pairs)>0:
             if len(glb_watchlist)<WATCHLIST_CAPACITY:
-                # watchlist buy/sell still unavailable
-                simulated_pairs=[]
-                for pair in block_data.watchlist:
-                    if pair.has_buy and pair.has_sell:
-                        simulated_pairs.append(pair)
-                        logging.info(f"MAIN add {pair} to simulation")
+                simulation_results = simulate(block_data.pairs)
+                logging.debug(f"MAIN simulation result {simulation_results}")
 
-                if len(simulated_pairs)>0:
-                    simulation_results = simulate(simulated_pairs)
-                    logging.debug(f"SIMULATION result {simulation_results}")
+                for result in simulation_results:
+                    if MAX_INSPECT_ATTEMPTS > 1:
+                        with glb_lock:
+                            # append to watchlist
+                            pair=result.pair
+                            pair.inspect_attempts=1
+                            glb_watchlist.append(pair)
 
-                    for result in simulation_results:
-                        if MAX_INSPECT_ATTEMPTS > 1:
-                            with glb_lock:
-                                # append to watchlist
-                                pair=result.pair
-                                pair.inspect_attempts=1
-                                glb_watchlist.append(pair)
-
-                            logging.info(f"MAIN add pair {pair} to watchlist")
-                        else:
-                            # send order immediately
-                            send_exec_order(block_data, result.pair)
+                        logging.info(f"MAIN add pair {pair} to watchlist")
+                    else:
+                        # send order immediately
+                        send_exec_order(block_data, result.pair)
             else:
                 logging.info(f"MAIN watchlist is already full capacity")
 
