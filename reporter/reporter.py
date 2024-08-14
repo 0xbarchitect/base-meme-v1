@@ -106,7 +106,7 @@ class Reporter(metaclass=Singleton):
             else:
                 logging.debug(f"pair exists id #{pair.id}")
 
-            position = await Position.objects.filter(pair__address=execution_ack.pair.address, is_deleted=0).afirst()
+            position = await Position.objects.filter(pair__address=execution_ack.pair.address.lower(), is_deleted=0).afirst()
             if position is None:
                 position = Position(
                     pair=pair,
@@ -150,7 +150,7 @@ class Reporter(metaclass=Singleton):
 
         async def save_blacklist(data):
             for bl in data:
-                blacklist = await BlackList.objects.filter(address=bl).afirst()
+                blacklist = await BlackList.objects.filter(address=bl.lower()).afirst()
                 if blacklist is None:
                     blacklist = BlackList(address=bl.lower())
                     await blacklist.asave()
