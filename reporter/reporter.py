@@ -56,7 +56,7 @@ class Reporter(metaclass=Singleton):
                 logging.debug(f"block found id #{block.id}")
 
             for pair in report.data.pairs:
-                pair_ins = await console.models.Pair.objects.filter(address=pair.address).afirst()
+                pair_ins = await console.models.Pair.objects.filter(address=pair.address.lower()).afirst()
                 if pair_ins is None:
                     pair_ins = console.models.Pair(
                         address=pair.address.lower(),
@@ -95,11 +95,11 @@ class Reporter(metaclass=Singleton):
             else:
                 logging.debug(f"tx exists id #{tx.id}")
 
-            pair = await console.models.Pair.objects.filter(address=execution_ack.pair.address,token=execution_ack.pair.token).afirst()
+            pair = await console.models.Pair.objects.filter(address=execution_ack.pair.address.lower(),token=execution_ack.pair.token.lower()).afirst()
             if pair is None:
                 pair = console.models.Pair(
-                    address=execution_ack.pair.address,
-                    token=execution_ack.pair.token,
+                    address=execution_ack.pair.address.lower(),
+                    token=execution_ack.pair.token.lower(),
                 )
                 await pair.asave()
                 logging.debug(f"pair saved id #{pair.id}")
