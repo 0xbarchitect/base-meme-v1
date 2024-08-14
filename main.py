@@ -8,7 +8,7 @@ import os
 import logging
 from decimal import Decimal
 from time import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -25,6 +25,7 @@ from data import ExecutionOrder, SimulationResult, ExecutionAck, Position, TxSta
 
 # django
 import django
+from django.utils.timezone import make_aware
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "admin.settings")
 django.setup()
 import console.models
@@ -202,7 +203,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                     inspection_batch.append(pair)
 
             if len(inspection_batch)>0:
-                results = inspect(inspection_batch)
+                results = inspect(inspection_batch, report_broker)
                 logging.info(f"MAIN watchlist simulation result {results}")
 
                 for result in results:
@@ -229,7 +230,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                         logging.warning(f"MAIN remove pair {pair} from watchlist at index #{idx} due to inspection failed")
 
         if  len(block_data.pairs)>0:
-            results = inspect(block_data.pairs)
+            results = inspect(block_data.pairs, report_broker)
             logging.debug(f"MAIN inspection result {results}")
 
             if len(glb_watchlist)<WATCHLIST_CAPACITY:
@@ -256,7 +257,7 @@ def inspect(pairs, report_broker) -> SimulationResult:
             logging.warning(f"MAIN pair {pair} is blacklisted due to rogue creator")
             return None
         
-        duplicate_pool_creator = console.models.Pair.objects.filter(creator=pair.creator.lower()).filter(created_at__gte=datetime.datetime.now() - datetime.timedelta(30)).exclude(address=pair.address.lower()).first()
+        duplicate_pool_creator = console.models.Pair.objects.filter(creator=pair.creator.lower()).filter(created_at__gte=make_aware(datetime.now() - timedelta(30))).exclude(address=pair.address.lower()).first()
         if duplicate_pool_creator is not None:
             logging.warning(f"MAIN suspicious {pair} due to the same creator with other pair {duplicate_pool_creator.address}")
 

@@ -19,8 +19,7 @@ from library import Singleton
 from data import BlockData, Pair, ExecutionAck, FilterLogs, FilterLogsType, ReportData, ReportDataType, TxStatus
 from helpers import async_timer_decorator, load_abi, timer_decorator
 
-RESERVE_ETH_MIN_THRESHOLD=float(os.environ.get('RESERVE_ETH_MIN_THRESHOLD'))
-RESERVE_ETH_MAX_THRESHOLD=float(os.environ.get('RESERVE_ETH_MAX_THRESHOLD'))
+ADDRESS_ZERO="0x0000000000000000000000000000000000000000"
 
 glb_lock = threading.Lock()
 
@@ -77,6 +76,25 @@ class BlockWatcher(metaclass=Singleton):
                 continue
 
     @timer_decorator
+    def get_reserves_and_creator(self, pair_address, block_number):
+        contract = self.w3.eth.contract(address=pair_address, abi=self.pair_abi)
+        reserves = contract.functions.getReserves().call()
+
+        mint_logs = contract.events.Transfer().get_logs(
+            fromBlock=block_number,
+            toBlock=block_number,
+        )
+
+        creator = None
+        if mint_logs != ():
+            for log in mint_logs:
+                if log['args']['to'] != ADDRESS_ZERO:
+                    creator = log['args']['to']
+                    break
+
+        return (reserves, creator)
+
+    @timer_decorator
     def get_reserves(self, pair_address):
         contract = self.w3.eth.contract(address=pair_address, abi=self.pair_abi)
         reserves = contract.functions.getReserves().call()
@@ -84,7 +102,7 @@ class BlockWatcher(metaclass=Singleton):
     
     @timer_decorator
     def filter_log_in_block(self, block_number, block_timestamp):
-        #block_number = 17918019 # TODO
+        #block_number = 18432668 # TODO
 
         def filter_paircreated_log(block_number):
             pair_created_logs = self.factory.events.PairCreated().get_logs(
@@ -95,7 +113,7 @@ class BlockWatcher(metaclass=Singleton):
             pairs = []
             if pair_created_logs != ():
                 for log in pair_created_logs:
-                    logging.debug(f"found pair created {log}")
+                    logging.debug(f"WATCHER found pair created {log}")
                     if log['args']['token0'].lower() == self.weth_address.lower() or log['args']['token1'].lower() == self.weth_address.lower():
                         pairs.append(Pair(
                             token=log['args']['token0'] if log['args']['token1'].lower() == self.weth_address.lower() else log['args']['token1'],
@@ -105,16 +123,17 @@ class BlockWatcher(metaclass=Singleton):
                         ))
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                future_to_pair = {executor.submit(self.get_reserves, pair.address): idx for idx,pair in enumerate(pairs)}
+                future_to_pair = {executor.submit(self.get_reserves_and_creator, pair.address, block_number): idx for idx,pair in enumerate(pairs)}
                 for future in concurrent.futures.as_completed(future_to_pair):
                     idx = future_to_pair[future]
                     try:
                         result = future.result()
-                        logging.debug(f"getReserves {pairs[idx].address} result {result}")
-                        pairs[idx].reserve_token = Web3.from_wei(result[0],'ether') if pairs[idx].token_index == 0 else Web3.from_wei(result[1], 'ether')
-                        pairs[idx].reserve_eth = Web3.from_wei(result[1],'ether') if pairs[idx].token_index == 0 else Web3.from_wei(result[0], 'ether')
+                        logging.debug(f"WATCHER getReserves {pairs[idx].address} result {result}")
+                        pairs[idx].reserve_token = Web3.from_wei(result[0][0],'ether') if pairs[idx].token_index == 0 else Web3.from_wei(result[0][1], 'ether')
+                        pairs[idx].reserve_eth = Web3.from_wei(result[0][1],'ether') if pairs[idx].token_index == 0 else Web3.from_wei(result[0][0], 'ether')
+                        pairs[idx].creator = Web3.to_checksum_address(result[1])
                     except Exception as e:
-                        logging.error(f"getReserves {pair} error {e}")
+                        logging.error(f"WATCHER getReserves {pair} error {e}")
 
             return FilterLogs(
                 type=FilterLogsType.PAIR_CREATED,
