@@ -170,7 +170,7 @@ class Reporter(metaclass=Singleton):
                 raise Exception(f"report type {report.type} is unsupported")
             
         except Exception as e:
-            logging.error(f"save data to db failed with error {e}")
+            logging.error(f"REPORTER save data to db failed with error {e}")
 
 if __name__ == '__main__':
     from dotenv import load_dotenv
