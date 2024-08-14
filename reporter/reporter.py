@@ -20,7 +20,8 @@ from console.models import Block, Transaction, Position, PositionTransaction, Bl
 import console.models
 
 BUY_AMOUNT=float(os.environ.get('BUY_AMOUNT'))
-GAS_COST=2*10**-6
+#GAS_COST=2*10**-6
+GAS_COST=float(os.environ.get('GAS_COST_GWEI'))*10**-9
 
 class Reporter(metaclass=Singleton):
     def __init__(self, receiver, sender):
@@ -28,18 +29,7 @@ class Reporter(metaclass=Singleton):
         self.sender = sender
 
     async def run(self):
-        asyncio.gather(
-            await self.bootstrap(),
-            await self.listen_report(),
-        )
-
-    async def bootstrap(self):
-        blacklists=[Decimal(bl.reserve_eth) async for bl in BlackList.objects.filter(is_deleted=0).all()]
-        logging.info(f"push blacklist {blacklists} to main thread")
-        self.sender.put(ReportData(
-            type=ReportDataType.BLACKLIST_BOOTSTRAP,
-            data=blacklists
-        ))
+        await self.listen_report()
 
     async def listen_report(self):
         logging.info(f"REPORTER listen for report...")
@@ -69,12 +59,13 @@ class Reporter(metaclass=Singleton):
                 pair_ins = await console.models.Pair.objects.filter(address=pair.address).afirst()
                 if pair_ins is None:
                     pair_ins = console.models.Pair(
-                        address=pair.address,
-                        token=pair.token,
+                        address=pair.address.lower(),
+                        token=pair.token.lower(),
                         token_index=pair.token_index,
                         reserve_token=pair.reserve_token,
                         reserve_eth=pair.reserve_eth,
                         deployed_at=make_aware(datetime.fromtimestamp(report.data.block_timestamp)),
+                        creator=pair.creator.lower(),
                     )
                     await pair_ins.asave()
                     logging.debug(f"pair saved with id #{pair_ins.id}")
@@ -159,9 +150,9 @@ class Reporter(metaclass=Singleton):
 
         async def save_blacklist(data):
             for bl in data:
-                blacklist = await BlackList.objects.filter(reserve_eth=bl).afirst()
+                blacklist = await BlackList.objects.filter(address=bl).afirst()
                 if blacklist is None:
-                    blacklist = BlackList(reserve_eth=bl)
+                    blacklist = BlackList(address=bl.lower())
                     await blacklist.asave()
                     logging.info(f"REPORTER save {bl} to blacklist DB with id #{blacklist.id}")
                 else:
@@ -235,7 +226,7 @@ if __name__ == '__main__':
 
     receiver.put(ReportData(
         type=ReportDataType.BLACKLIST_ADDED,
-        data=[1.11,2.22,3.33]
+        data=["0xfoo"]
     ))
 
     asyncio.run(reporter.run())

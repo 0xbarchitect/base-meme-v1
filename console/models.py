@@ -44,6 +44,9 @@ class Transaction(models.Model):
 class Pair(models.Model):
     class Meta():
         db_table = 'pair'
+        indexes = [
+            models.Index(fields=['creator']),
+        ]
 
     id = models.BigAutoField(primary_key=True)
     address = models.CharField(max_length=42, unique=True)
@@ -52,6 +55,7 @@ class Pair(models.Model):
     reserve_token = models.FloatField(null=True, default=0)
     reserve_eth = models.FloatField(null=True, default=0)
     deployed_at = models.DateTimeField(null=True)
+    creator = models.CharField(max_length=42, null=True)
 
     created_at = models.DateTimeField(null=True,auto_now_add=True)
     updated_at = models.DateTimeField(null=True,auto_now=True)
@@ -105,13 +109,13 @@ class BlackList(models.Model):
         db_table = 'blacklist'
 
     id = models.BigAutoField(primary_key=True)
-    reserve_eth = models.FloatField(unique=True)
+    address = models.CharField(max_length=42, unique=True, null=True)
 
     created_at = models.DateTimeField(null=True,auto_now_add=True)
     updated_at = models.DateTimeField(null=True,auto_now=True)
     is_deleted = models.IntegerField(null=True,default=0)
 
     def __str__(self) -> str:
-        return f"{self.reserve_eth}"
+        return f"{self.address}"
     
 

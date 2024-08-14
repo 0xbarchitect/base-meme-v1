@@ -75,8 +75,8 @@ class PositionAdmin(FullPermissionModelAdmin):
     
 class BlacklistAdmin(FullPermissionModelAdmin):
     list_filter = ['is_deleted']
-    list_display = ('id', 'reserve_eth', 'buttons')
-    fields = ('reserve_eth',)
+    list_display = ('id', 'address', 'buttons')
+    fields = ('address',)
     
     @admin.display(description='Actions')
     def buttons(self, obj):

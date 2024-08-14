@@ -23,12 +23,17 @@ from helpers import load_abi, timer_decorator, calculate_price, calculate_next_b
 from data import ExecutionOrder, SimulationResult, ExecutionAck, Position, TxStatus, \
                     ReportData, ReportDataType, BlockData, Pair
 
+# django
+import django
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "admin.settings")
+django.setup()
+import console.models
+
 # global variables
 glb_fullfilled = 0
 glb_liquidated = False
 glb_watchlist = []
 glb_inventory = []
-glb_blacklist = []
 glb_daily_pnl = (datetime.now(), 0)
 glb_auto_run = True
 glb_lock = threading.Lock()
@@ -64,11 +69,13 @@ DEADLINE_DELAY_SECONDS = 30
 GAS_LIMIT = 250*10**3
 MAX_FEE_PER_GAS = 10**9
 MAX_PRIORITY_FEE_PER_GAS = 10**9
-GAS_COST = 2*10**-6
+
+#GAS_COST = 2*10**-6
+GAS_COST=float(os.environ.get('GAS_COST_GWEI'))*10**-9
 
 # liquidation conditions
-TAKE_PROFIT_PERCENTAGE = 30
-STOP_LOSS_PERCENTAGE = -15
+TAKE_PROFIT_PERCENTAGE=float(os.environ.get('TAKE_PROFIT_PERCENTAGE'))
+STOP_LOSS_PERCENTAGE=float(os.environ.get('STOP_LOSS_PERCENTAGE'))
 HOLD_MAX_DURATION_SECONDS=int(os.environ.get('HOLD_MAX_DURATION_SECONDS'))
 HARD_STOP_PNL_THRESHOLD=int(os.environ.get('HARD_STOP_PNL_THRESHOLD'))
 
@@ -195,10 +202,10 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                     inspection_batch.append(pair)
 
             if len(inspection_batch)>0:
-                simulation_results = simulate(inspection_batch)
-                logging.info(f"MAIN watchlist simulation result {simulation_results}")
+                results = inspect(inspection_batch)
+                logging.info(f"MAIN watchlist simulation result {results}")
 
-                for result in simulation_results:
+                for result in results:
                     for idx,pair in enumerate(glb_watchlist):
                         if result.pair.address == pair.address:
                             with glb_lock:
@@ -213,21 +220,20 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                             send_exec_order(block_data, pair)
 
                 # remove simulation failed pair
-                failed_pairs = [pair.address for pair in inspection_batch if pair.address not in [result.pair.address for result in simulation_results]]
+                failed_pairs = [pair.address for pair in inspection_batch if pair.address not in [result.pair.address for result in results]]
                 for idx,pair in enumerate(glb_watchlist):
                     if pair.address in failed_pairs:
                         with glb_lock:
                             glb_watchlist.pop(idx)
 
-                        logging.warning(f"MAIN remove pair {pair} from watchlist at index #{idx} due to simulation failed")
-
+                        logging.warning(f"MAIN remove pair {pair} from watchlist at index #{idx} due to inspection failed")
 
         if  len(block_data.pairs)>0:
-            if len(glb_watchlist)<WATCHLIST_CAPACITY:
-                simulation_results = simulate(block_data.pairs)
-                logging.debug(f"MAIN simulation result {simulation_results}")
+            results = inspect(block_data.pairs)
+            logging.debug(f"MAIN inspection result {results}")
 
-                for result in simulation_results:
+            if len(glb_watchlist)<WATCHLIST_CAPACITY:
+                for result in results:
                     if MAX_INSPECT_ATTEMPTS > 1:
                         with glb_lock:
                             # append to watchlist
@@ -242,21 +248,35 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
             else:
                 logging.info(f"MAIN watchlist is already full capacity")
 
-
 @timer_decorator
-def simulate(pairs) -> SimulationResult:
-    def inspect_pair(pair) -> SimulationResult:
-        global glb_blacklist
-
-        if pair.reserve_eth<RESERVE_ETH_MIN_THRESHOLD or pair.reserve_eth>RESERVE_ETH_MAX_THRESHOLD:
+def inspect(pairs, report_broker) -> SimulationResult:
+    def anti_fraud(pair, report_broker) -> Pair:
+        blacklist = console.models.BlackList.objects.filter(address=pair.creator.lower()).first()
+        if blacklist is not None:
+            logging.warning(f"MAIN pair {pair} is blacklisted due to rogue creator")
             return None
         
-        if BLACKLIST_ENABLE==1:
-            logging.debug(f"assert {pair.reserve_eth} with blacklist {glb_blacklist}")
-            for value in glb_blacklist:
-                if round(Decimal(pair.reserve_eth), 3) == round(value, 3):
-                    logging.warning(f"reserve eth {round(pair.reserve_eth, 3)} is blacklisted")
-                    return None
+        duplicate_pool_creator = console.models.Pair.objects.filter(creator=pair.creator.lower()).filter(created_at__gte=datetime.datetime.now() - datetime.timedelta(30)).exclude(address=pair.address.lower()).first()
+        if duplicate_pool_creator is not None:
+            logging.warning(f"MAIN suspicious {pair} due to the same creator with other pair {duplicate_pool_creator.address}")
+
+            report_broker.put(ReportData(
+                type=ReportDataType.BLACKLIST_ADDED,
+                data=[pair.creator]
+            ))
+            logging.warning(f"MAIN add {pair} to blacklist")
+
+            return None
+        
+        return pair
+
+    def inspect_pair(pair) -> SimulationResult:
+
+        if anti_fraud(pair, report_broker) is None:
+            return None
+        
+        if pair.reserve_eth<RESERVE_ETH_MIN_THRESHOLD or pair.reserve_eth>RESERVE_ETH_MAX_THRESHOLD:
+            return None
         
         simulator = Simulator(
             http_url=os.environ.get('HTTPS_URL'),
@@ -279,12 +299,12 @@ def simulate(pairs) -> SimulationResult:
             token = future_to_token[future]
             try:
                 result = future.result()
-                logging.info(f"inspect token {token} result {result}")
+                logging.info(f"MAIN inspect token {token} result {result}")
                 if result is not None and isinstance(result, SimulationResult):
                     if result.slippage > SLIPPAGE_MIN_THRESHOLD and result.slippage < SLIPPAGE_MAX_THRESHOLD:
                         results.append(result)
             except Exception as e:
-                logging.error(f"inspect token {token} error {e}")
+                logging.error(f"MAIN inspect token {token} error {e}")
 
     return results
 
@@ -335,7 +355,6 @@ async def main():
         global glb_fullfilled
         global glb_liquidated
         global glb_daily_pnl
-        global glb_blacklist
 
         while True:
             report = await execution_report.coro_get()
@@ -388,30 +407,19 @@ async def main():
                                     glb_liquidated = False
                                     glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] - 100)
 
-                                if report.pair.reserve_eth not in glb_blacklist:
-                                    with glb_lock:
-                                        glb_blacklist.append(report.pair.reserve_eth)
-
-                                    report_broker.put(ReportData(
-                                        type=ReportDataType.BLACKLIST_ADDED,
-                                        data=[report.pair.reserve_eth]
-                                    ))
-                                    logging.warning(f"add {report.pair.reserve_eth} to blacklist")
+                                report_broker.put(ReportData(
+                                    type=ReportDataType.BLACKLIST_ADDED,
+                                    data=[report.pair.creator]
+                                ))
+                                logging.warning(f"MAIN add {report.pair} to blacklist")
 
                                 logging.info(f"MAIN remove {position} at index #{idx} from inventory, update PnL {glb_daily_pnl}")
 
     async def handle_control_order():
-        global glb_blacklist
         global glb_lock
 
         while True:
             command = await control_receiver.coro_get()
-
-            if command is not None and isinstance(command, ReportData) and command.type == ReportDataType.BLACKLIST_BOOTSTRAP:
-                with glb_lock:
-                    glb_blacklist=command.data
-
-                logging.info(f"MAIN bootstrap blacklist {glb_blacklist}")
 
     # control_receiver.put(ReportData(
     #     type=ReportDataType.BLACKLIST_BOOTSTRAP,
@@ -434,11 +442,11 @@ async def main():
     # ))
 
     await asyncio.gather(watching_process(watching_broker, watching_notifier),
-                         strategy(watching_broker, execution_broker, report_broker, watching_notifier,),
-                         handle_execution_report(),
-                         reporter.run(),
-                         handle_control_order(),
-                         )
+                        strategy(watching_broker, execution_broker, report_broker, watching_notifier,),
+                        handle_execution_report(),
+                        reporter.run(),
+                        handle_control_order(),
+                        )
 
 if __name__=="__main__":
     asyncio.run(main())
