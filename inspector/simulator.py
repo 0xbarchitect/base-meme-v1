@@ -32,7 +32,7 @@ class Simulator:
                  weth_abi,
                  inspector_abi,
                  ):
-        logging.info(f"start simulation...")
+        logging.debug(f"start simulation...")
 
         self.http_url = http_url
         self.signer = signer
@@ -110,20 +110,6 @@ class Simulator:
     @timer_decorator
     def inspect_token_by_swap(self, token, amount):
         try:
-            # result = self.w3.eth.call({
-            #     'from': self.signer,
-            #     'to': self.inspector.address,
-            #     'value': Web3.to_wei(amount, 'ether'),
-            #     'data': bytes.fromhex(
-            #         func_selector('inspect(address)') + encode_address(token)
-            #     )
-            # }, 'latest', state_override)
-
-            # result = eth_abi.decode(['(uint256,uint256,uint256)'], result)
-            
-            # slippage = (Decimal(result[0][0]) - Decimal(result[0][2]))/Decimal(result[0][0])*Decimal(10_000) # in basis points
-            # slippage = round(slippage,5)
-
             # buy
             result = self.w3.eth.call({
                 'from': self.signer,
@@ -143,7 +129,7 @@ class Simulator:
             assert len(resultBuy[0]) == 2
             assert resultBuy[0][0] == Web3.to_wei(amount, 'ether')
 
-            logging.info(f"SIMULATOR buy result {resultBuy}")
+            logging.debug(f"SIMULATOR buy result {resultBuy}")
 
             # sell
             storage_index = calculate_balance_storage_index(self.inspector.address, 0)
@@ -167,7 +153,7 @@ class Simulator:
             assert len(resultSell[0]) == 2
             assert resultSell[0][0] == resultBuy[0][1]
 
-            logging.info(f"SIMULATOR sell result {resultSell}")
+            logging.debug(f"SIMULATOR sell result {resultSell}")
 
             amount_out = Web3.from_wei(resultSell[0][1], 'ether')
             slippage = (Decimal(amount) - Decimal(amount_out))/Decimal(amount)*Decimal(10000)
@@ -175,7 +161,7 @@ class Simulator:
             
             return (amount, amount_out, slippage, amount_token)
         except Exception as e:
-            logging.error(f"inspect failed with error {e}")
+            logging.error(f"SIMULATOR inspect {token} failed with error {e}")
             return None
         
     def inspect_pair(self, pair: Pair, amount, swap=True) -> None:

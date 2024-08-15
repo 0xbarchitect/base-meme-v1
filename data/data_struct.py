@@ -110,7 +110,7 @@ class SimulationResult:
         self.amount_token = amount_token
 
     def __str__(self) -> str:
-        return f"Simulation result {self.pair} slippage {self.slippage} amountIn {self.amount_in} amountOut {self.amount_out} amountToken {self.amount_token}"
+        return f"Simulation result {self.pair.address} slippage {self.slippage} amountIn {self.amount_in} amountOut {self.amount_out} amountToken {self.amount_token}"
     
 class FilterLogsType(IntEnum):
     PAIR_CREATED = 0
@@ -136,8 +136,34 @@ class Position:
         self.bot = bot
 
     def __str__(self) -> str:
-        return f"Position {self.pair} amount {self.amount} buyPrice {self.buy_price} startTime {self.start_time} signer {self.signer} bot {self.bot} pnl {self.pnl}"
+        return f"Position {self.pair.address} amount {self.amount} buyPrice {self.buy_price} startTime {self.start_time} signer {self.signer} bot {self.bot} pnl {self.pnl}"
     
 class TxStatus(IntEnum):
     FAILED = 0
     SUCCESS = 1
+
+class MaliciousPair(IntEnum):
+    UNMALICIOUS=0
+    CREATOR_BLACKLISTED=1
+    CREATOR_DUPLICATED=2 
+
+class InspectionResult:
+    def __init__(self, pair: Pair, from_block, to_block, reserve_inrange=False, simulation_result=None, is_malicious=MaliciousPair.UNMALICIOUS, contract_verified=False, is_creator_call_contract=0, number_tx_mm=0) -> None:
+        self.pair = pair
+        self.from_block = from_block
+        self.to_block = to_block
+
+        self.reserve_inrange = reserve_inrange
+        self.simulation_result = simulation_result
+        self.is_malicious = is_malicious
+        self.contract_verified = contract_verified
+        self.is_creator_call_contract = is_creator_call_contract
+        self.number_tx_mm = number_tx_mm
+
+    def __str__(self) -> str:
+        return f"""
+        Inspection result Pair {self.pair.address} fromBlock {self.from_block} toBlock {self.to_block}
+        ReserveInrange {self.reserve_inrange} IsMalicious {self.is_malicious} ContractVerified {self.contract_verified}
+        CreatorCallContract {self.is_creator_call_contract} NumberTxMM {self.number_tx_mm}
+        SimulationResult {self.simulation_result}
+        """

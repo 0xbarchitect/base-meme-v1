@@ -9,26 +9,20 @@ import logging
 from decimal import Decimal
 from time import time
 from datetime import datetime, timedelta
+from typing import List
 
 from dotenv import load_dotenv
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
 from watcher import BlockWatcher
-from simulator import Simulator
+from inspector import Simulator, PairInspector
 from executor import BuySellExecutor
 from reporter import Reporter
 from helpers import load_abi, timer_decorator, calculate_price, calculate_next_block_base_fee
 
 from data import ExecutionOrder, SimulationResult, ExecutionAck, Position, TxStatus, \
-                    ReportData, ReportDataType, BlockData, Pair
-
-# django
-import django
-from django.utils.timezone import make_aware
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "admin.settings")
-django.setup()
-import console.models
+                    ReportData, ReportDataType, BlockData, Pair, MaliciousPair, InspectionResult
 
 # global variables
 glb_fullfilled = 0
@@ -49,7 +43,6 @@ BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/InspectBot.abi.j
 
 # simulation conditions
 WATCHING_ONLY=int(os.environ.get('WATCHING_ONLY', '0'))
-BLACKLIST_ENABLE=int(os.environ.get('BLACKLIST_ENABLE', '0'))
 
 RESERVE_ETH_MIN_THRESHOLD=float(os.environ.get('RESERVE_ETH_MIN_THRESHOLD'))
 RESERVE_ETH_MAX_THRESHOLD=float(os.environ.get('RESERVE_ETH_MAX_THRESHOLD'))
@@ -62,6 +55,7 @@ SLIPPAGE_MAX_THRESHOLD = 100 # in basis points
 MAX_INSPECT_ATTEMPTS=int(os.environ.get('MAX_INSPECT_ATTEMPTS'))
 INSPECT_INTERVAL_SECONDS=int(os.environ.get('INSPECT_INTERVAL_SECONDS'))
 WATCHLIST_CAPACITY = 100
+NUMBER_TX_MM_THRESHOLD=int(os.environ.get('NUMBER_TX_MM_THRESHOLD'))
 
 # buy/sell tx config
 INVENTORY_CAPACITY=int(os.environ.get('INVENTORY_CAPACITY'))
@@ -70,8 +64,6 @@ DEADLINE_DELAY_SECONDS = 30
 GAS_LIMIT = 250*10**3
 MAX_FEE_PER_GAS = 10**9
 MAX_PRIORITY_FEE_PER_GAS = 10**9
-
-#GAS_COST = 2*10**-6
 GAS_COST=float(os.environ.get('GAS_COST_GWEI'))*10**-9
 
 # liquidation conditions
@@ -199,114 +191,93 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
             inspection_batch=[]
             for pair in glb_watchlist:
                 if (block_data.block_timestamp - pair.created_at) > pair.inspect_attempts*INSPECT_INTERVAL_SECONDS:
-                    logging.info(f"MAIN pair {pair} inspect time #{pair.inspect_attempts + 1} elapsed")
+                    logging.info(f"MAIN pair {pair.address} inspect time #{pair.inspect_attempts + 1} elapsed")
                     inspection_batch.append(pair)
 
             if len(inspection_batch)>0:
-                results = inspect(inspection_batch, report_broker)
+                results = inspect(inspection_batch, block_data.block_number)
                 logging.info(f"MAIN watchlist simulation result {results}")
 
                 for result in results:
-                    for idx,pair in enumerate(glb_watchlist):
-                        if result.pair.address == pair.address:
-                            with glb_lock:
-                                pair.inspect_attempts+=1
-                            logging.info(f"MAIN update {pair} inspect attempts {pair.inspect_attempts}")
+                    if result.is_malicious == MaliciousPair.CREATOR_DUPLICATED:
+                        report_broker.put(ReportData(
+                            type=ReportDataType.BLACKLIST_ADDED,
+                            data=[result.pair.creator]
+                        ))
+                        logging.warning(f"MAIN add {result.pair.creator} to blacklist")
 
-                        if pair.inspect_attempts >= MAX_INSPECT_ATTEMPTS:   
-                            with glb_lock:
-                                glb_watchlist.pop(idx)
+                    elif result.simulation_result is not None:
+                        for idx,pair in enumerate(glb_watchlist):
+                            if result.pair.address == pair.address:
+                                with glb_lock:
+                                    pair.inspect_attempts += 1
+                                    pair.last_inspected_block = block_data.block_number
+                                    pair.number_tx_mm += result.number_tx_mm
+                                logging.info(f"MAIN update {pair} inspect attempts {pair.inspect_attempts}")
 
-                            logging.warning(f"remove pair {pair} from watching list at index #{idx} caused by reaching max attempts {MAX_INSPECT_ATTEMPTS}")
-                            send_exec_order(block_data, pair)
+                            if pair.inspect_attempts >= MAX_INSPECT_ATTEMPTS or pair.number_tx_mm > NUMBER_TX_MM_THRESHOLD:
+                                with glb_lock:
+                                    glb_watchlist.pop(idx)
+
+                                logging.warning(f"MAIN remove pair {pair.address} from watching list at index #{idx} caused by reaching max attempts {MAX_INSPECT_ATTEMPTS} or number tx mm {NUMBER_TX_MM_THRESHOLD}")
+                                send_exec_order(block_data, pair)
 
                 # remove simulation failed pair
-                failed_pairs = [pair.address for pair in inspection_batch if pair.address not in [result.pair.address for result in results]]
+                failed_pairs = [pair.address for pair in inspection_batch if pair.address not in [result.simulation_result.pair.address for result in results if result.simulation_result is not None]]
                 for idx,pair in enumerate(glb_watchlist):
                     if pair.address in failed_pairs:
                         with glb_lock:
                             glb_watchlist.pop(idx)
 
-                        logging.warning(f"MAIN remove pair {pair} from watchlist at index #{idx} due to inspection failed")
+                        logging.warning(f"MAIN remove pair {pair.address} from watchlist at index #{idx} due to inspection failed")
 
         if  len(block_data.pairs)>0:
-            results = inspect(block_data.pairs, report_broker)
+            results = inspect(block_data.pairs, block_data.block_number, is_initial=True)
             logging.debug(f"MAIN inspection result {results}")
 
             if len(glb_watchlist)<WATCHLIST_CAPACITY:
                 for result in results:
-                    if MAX_INSPECT_ATTEMPTS > 1:
-                        with glb_lock:
-                            # append to watchlist
-                            pair=result.pair
-                            pair.inspect_attempts=1
-                            glb_watchlist.append(pair)
+                    if result.is_malicious == MaliciousPair.CREATOR_DUPLICATED:
+                        report_broker.put(ReportData(
+                            type=ReportDataType.BLACKLIST_ADDED,
+                            data=[result.pair.creator]
+                        ))
+                        logging.warning(f"MAIN add {result.pair.creator} to blacklist")
+                    elif result.simulation_result is not None:
+                        if MAX_INSPECT_ATTEMPTS > 1:
+                            with glb_lock:
+                                # append to watchlist
+                                pair=result.pair
+                                pair.inspect_attempts=1
+                                pair.last_inspected_block=block_data.block_number
+                                pair.contract_verified=result.contract_verified
+                                pair.number_tx_mm=result.number_tx_mm
 
-                        logging.info(f"MAIN add pair {pair} to watchlist")
-                    else:
-                        # send order immediately
-                        send_exec_order(block_data, result.pair)
+                                glb_watchlist.append(pair)
+
+                            logging.info(f"MAIN add pair {pair.address} to watchlist")
+                        else:
+                            # send order immediately
+                            send_exec_order(block_data, result.pair)
             else:
                 logging.info(f"MAIN watchlist is already full capacity")
 
 @timer_decorator
-def inspect(pairs, report_broker):
-    def anti_fraud(pair, report_broker) -> Pair:
-        blacklist = console.models.BlackList.objects.filter(address=pair.creator.lower()).first()
-        if blacklist is not None:
-            logging.warning(f"MAIN pair {pair} is blacklisted due to rogue creator")
-            return None
-        
-        duplicate_pool_creator = console.models.Pair.objects.filter(creator=pair.creator.lower()).filter(created_at__gte=make_aware(datetime.now() - timedelta(30))).exclude(address=pair.address.lower()).first()
-        if duplicate_pool_creator is not None:
-            logging.warning(f"MAIN suspicious {pair} due to the same creator with other pair {duplicate_pool_creator.address}")
+def inspect(pairs, block_number, is_initial=False) -> List[InspectionResult]:
 
-            report_broker.put(ReportData(
-                type=ReportDataType.BLACKLIST_ADDED,
-                data=[pair.creator]
-            ))
-            logging.warning(f"MAIN add {pair} to blacklist")
+    inspector = PairInspector(
+        http_url=os.environ.get('HTTPS_URL'),
+        api_key=os.environ.get('BASESCAN_API_KEY'),
+        signer=os.environ.get('EXECUTION_ADDRESSES').split(',')[0],
+        router=os.environ.get('ROUTER_ADDRESS'),
+        weth=os.environ.get('WETH_ADDRESS'),
+        bot=os.environ.get('INSPECTOR_BOT').split(',')[0],
+        pair_abi=PAIR_ABI,
+        weth_abi=WETH_ABI,
+        bot_abi=BOT_ABI,
+    )
 
-            return None
-        
-        return pair
-
-    def inspect_pair(pair) -> SimulationResult:
-        if anti_fraud(pair, report_broker) is None:
-            return None
-        
-        if pair.reserve_eth<RESERVE_ETH_MIN_THRESHOLD or pair.reserve_eth>RESERVE_ETH_MAX_THRESHOLD:
-            return None
-        
-        simulator = Simulator(
-            http_url=os.environ.get('HTTPS_URL'),
-            signer=os.environ.get('EXECUTION_ADDRESSES').split(',')[0],
-            router_address=os.environ.get('ROUTER_ADDRESS'),
-            weth=os.environ.get('WETH_ADDRESS'),
-            inspector=os.environ.get('INSPECTOR_BOT').split(',')[0],
-            pair_abi=PAIR_ABI,
-            weth_abi=WETH_ABI,
-            inspector_abi=BOT_ABI,
-        )
-                                
-        return simulator.inspect_pair(pair, SIMULATION_AMOUNT)
-    
-    results = []
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_token = {executor.submit(inspect_pair, pair): pair.token for pair in pairs}
-        for future in concurrent.futures.as_completed(future_to_token):
-            token = future_to_token[future]
-            try:
-                result = future.result()
-                logging.info(f"MAIN inspect token {token} result {result}")
-                if result is not None and isinstance(result, SimulationResult):
-                    if result.slippage > SLIPPAGE_MIN_THRESHOLD and result.slippage < SLIPPAGE_MAX_THRESHOLD:
-                        results.append(result)
-            except Exception as e:
-                logging.error(f"MAIN inspect token {token} error {e}")
-
-    return results
+    return inspector.inspect_batch(pairs,block_number, is_initial)
 
 def execution_process(execution_broker, report_broker):
     executor = BuySellExecutor(

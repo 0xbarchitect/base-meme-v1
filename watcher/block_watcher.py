@@ -133,7 +133,7 @@ class BlockWatcher(metaclass=Singleton):
                         pairs[idx].reserve_eth = Web3.from_wei(result[0][1],'ether') if pairs[idx].token_index == 0 else Web3.from_wei(result[0][0], 'ether')
                         pairs[idx].creator = Web3.to_checksum_address(result[1])
                     except Exception as e:
-                        logging.error(f"WATCHER getReserves {pair} error {e}")
+                        logging.error(f"WATCHER getReserves {pairs[idx].address} error {e}")
 
             return FilterLogs(
                 type=FilterLogsType.PAIR_CREATED,
