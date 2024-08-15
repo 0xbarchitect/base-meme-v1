@@ -250,7 +250,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                 logging.info(f"MAIN watchlist is already full capacity")
 
 @timer_decorator
-def inspect(pairs, report_broker) -> SimulationResult:
+def inspect(pairs, report_broker):
     def anti_fraud(pair, report_broker) -> Pair:
         blacklist = console.models.BlackList.objects.filter(address=pair.creator.lower()).first()
         if blacklist is not None:
@@ -272,7 +272,6 @@ def inspect(pairs, report_broker) -> SimulationResult:
         return pair
 
     def inspect_pair(pair) -> SimulationResult:
-
         if anti_fraud(pair, report_broker) is None:
             return None
         

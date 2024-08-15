@@ -18,8 +18,7 @@ from helpers.utils import load_contract_bin, encode_address, encode_uint, func_s
                             load_abi, calculate_next_block_base_fee, calculate_balance_storage_index, rpad_int, \
                             calculate_allowance_storage_index
 
-from data import BlockData, SimulationResult, Pair
-import eth_utils
+from data import SimulationResult, Pair
 
 class Simulator:
     @timer_decorator

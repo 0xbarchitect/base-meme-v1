@@ -2,7 +2,7 @@ import os
 from decimal import Decimal
 
 class Pair:
-    def __init__(self, token, token_index, address, reserve_token=0, reserve_eth=0, created_at=0, inspect_attempts=0, has_buy=False, has_sell=False, creator=None) -> None:
+    def __init__(self, token, token_index, address, reserve_token=0, reserve_eth=0, created_at=0, inspect_attempts=0, creator=None, contract_verified=False, number_tx_mm=0, last_inspected_block=0) -> None:
         self.token = token
         self.token_index = token_index
         self.address = address
@@ -10,9 +10,10 @@ class Pair:
         self.reserve_eth = reserve_eth
         self.created_at = created_at
         self.inspect_attempts = inspect_attempts
-        self.has_buy = False
-        self.has_sell = False
         self.creator = creator
+        self.contract_verified = contract_verified
+        self.number_tx_mm = number_tx_mm
+        self.last_inspected_block = last_inspected_block
 
     def price(self):
         if self.reserve_token != 0 and self.reserve_eth != 0:
@@ -20,7 +21,10 @@ class Pair:
         return 0
 
     def  __str__(self) -> str:
-        return f"Pair {self.address} token {self.token} tokenIndex {self.token_index} reserve_token {self.reserve_token} reserve_eth {self.reserve_eth} creator {self.creator} createdAt {self.created_at} inspectAttempts {self.inspect_attempts}"
+        return f"""
+        Pair {self.address} token {self.token} tokenIndex {self.token_index} reserve_token {self.reserve_token} reserve_eth {self.reserve_eth} createdAt {self.created_at}
+        creator {self.creator} contractVerified {self.contract_verified} numberTxMM {self.number_tx_mm} inspectAttempts {self.inspect_attempts} lastInspectedBlock {self.last_inspected_block}
+        """
 
 class BlockData:
     def __init__(self, block_number, block_timestamp, base_fee, gas_used, gas_limit, pairs=[], inventory=[], watchlist=[]) -> None:
