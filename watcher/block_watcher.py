@@ -43,7 +43,7 @@ class BlockWatcher(metaclass=Singleton):
 
         async for w3Async in AsyncWeb3.persistent_websocket(WebsocketProviderV2(self.wss_url)):
             try:
-                logging.info(f"websocket connected...")
+                logging.info(f"WATCHER websocket connected...")
 
                 subscription_id = await w3Async.eth.subscribe("newHeads")
                 async for response in w3Async.ws.process_subscriptions():
@@ -72,7 +72,7 @@ class BlockWatcher(metaclass=Singleton):
                     ))
 
             except websockets.ConnectionClosed:
-                logging.error(f"websocket connection closed, reconnect...")
+                logging.error(f"WATCHER websocket connection closed, reconnect...")
                 continue
 
     @timer_decorator
@@ -194,12 +194,12 @@ class BlockWatcher(metaclass=Singleton):
 
                                     for pair in self.inventory:
                                         if pair.address == contract:
-                                            logging.info(f"update reserves for inventory {pair.address}")
+                                            logging.debug(f"WATCHER update reserves for inventory pair {pair.address}")
                                             pair.reserve_token = Web3.from_wei(log['args']['reserve0'], 'ether') if pair.token_index==0 else Web3.from_wei(log['args']['reserve1'], 'ether')
                                             pair.reserve_eth = Web3.from_wei(log['args']['reserve1'], 'ether') if pair.token_index==0 else Web3.from_wei(log['args']['reserve0'], 'ether')
 
                 except Exception as e:
-                    logging.error(f"contract {contract} error {e}")
+                    logging.error(f"WATCHER pair {contract} error {e}")
         
         return pairs
     
@@ -209,21 +209,21 @@ class BlockWatcher(metaclass=Singleton):
         def add_pair_to_inventory(pair):
             # sync current reserves
             result = self.get_reserves(pair.address)
-            logging.info(f"get reserves {pair} result {result}")
+            logging.debug(f"WATCHER get reserves {pair.address} result {result}")
 
             pair.reserve_token = Web3.from_wei(result[0],'ether') if pair.token_index == 0 else Web3.from_wei(result[1], 'ether')
             pair.reserve_eth = Web3.from_wei(result[1],'ether') if pair.token_index == 0 else Web3.from_wei(result[0], 'ether')
 
             with glb_lock:
                 self.inventory.append(pair)
-            logging.info(f"WATCHER add pair {pair} to watching {len(self.inventory)}")
+            logging.info(f"WATCHER add pair {pair.address} to inventory length {len(self.inventory)}")
 
         def remove_pair_from_inventory(pair):
             for idx,pr in enumerate(self.inventory):
                 if pr.address == pair.address:
                     with glb_lock:
                         self.inventory.pop(idx)
-                        logging.info(f"WATCHER remove pair {pair} from watching {len(self.inventory)}")
+                        logging.info(f"WATCHER remove pair {pair.address} from inventory length {len(self.inventory)}")
 
         while True:
             report = await self.report_broker.coro_get()
