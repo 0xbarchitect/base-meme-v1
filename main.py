@@ -106,7 +106,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                 glb_fullfilled += 1
 
             # send execution order
-            logging.warning(f"MAIN send buy-order of {pair} amount {BUY_AMOUNT}")
+            logging.warning(f"MAIN send buy-order of {pair.address} amount {BUY_AMOUNT}")
             execution_broker.put(ExecutionOrder(
                 block_number=block_data.block_number,
                 block_timestamp=block_data.block_timestamp,
@@ -120,8 +120,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
 
     while True:
         block_data = await watching_broker.coro_get()
-
-        logging.info(f"STRATEGY received block {block_data}")
+        logging.info(f"MAIN received block {block_data}")
         
         # send block report
         if len(block_data.pairs) > 0:
@@ -144,10 +143,10 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                     for pair in block_data.inventory:
                         if position.pair.address == pair.address:
                             position.pnl = calculate_pnl_percentage(position, pair)
-                            logging.info(f"{position} update PnL {position.pnl}")
+                            logging.info(f"MAIN {position} update PnL {position.pnl}")
                             
                             if position.pnl > Decimal(TAKE_PROFIT_PERCENTAGE) or position.pnl < Decimal(STOP_LOSS_PERCENTAGE):
-                                logging.warning(f"{position} take profit or stop loss caused by pnl {position.pnl}")
+                                logging.warning(f"MAIN {position} take profit or stop loss caused by pnl {position.pnl}")
                                 is_liquidated = True
                                 break
 
@@ -196,7 +195,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
 
             if len(inspection_batch)>0:
                 results = inspect(inspection_batch, block_data.block_number)
-                logging.info(f"MAIN watchlist simulation result {results}")
+                logging.debug(f"MAIN watchlist simulation result length {len(results)}")
 
                 for result in results:
                     if result.is_malicious == MaliciousPair.CREATOR_DUPLICATED:
@@ -236,7 +235,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
 
         if  len(block_data.pairs)>0:
             results = inspect(block_data.pairs, block_data.block_number, is_initial=True)
-            logging.debug(f"MAIN inspection result {results}")
+            logging.debug(f"MAIN inspection results length {len(results)}")
 
             if len(glb_watchlist)<WATCHLIST_CAPACITY:
                 for result in results:
@@ -354,7 +353,7 @@ async def main():
                                 signer=report.signer,
                                 bot=report.bot,
                             ))
-                            logging.info(f"MAIN append {report.pair} to inventory")
+                            logging.info(f"MAIN append {report.pair.address} to inventory")
                     else:
                         for idx, position in enumerate(glb_inventory):
                             if position.pair.address == report.pair.address:
@@ -368,7 +367,7 @@ async def main():
 
                                     logging.info(f"MAIN remove {position} at index #{idx} from inventory, update PnL {glb_daily_pnl}")
                 else:
-                    logging.info(f"execution failed, reset lock...")
+                    logging.info(f"MAIN execution failed, reset lock...")
                     if report.is_buy:
                         with glb_lock:
                             glb_fullfilled -= 1
@@ -385,7 +384,7 @@ async def main():
                                     type=ReportDataType.BLACKLIST_ADDED,
                                     data=[report.pair.creator]
                                 ))
-                                logging.warning(f"MAIN add {report.pair} to blacklist")
+                                logging.warning(f"MAIN add {report.pair.creator} to blacklist")
 
                                 logging.info(f"MAIN remove {position} at index #{idx} from inventory, update PnL {glb_daily_pnl}")
 

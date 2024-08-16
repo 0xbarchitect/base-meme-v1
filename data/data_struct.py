@@ -22,7 +22,7 @@ class Pair:
 
     def  __str__(self) -> str:
         return f"""
-        Pair {self.address} Token {self.token} TokenIndex {self.token_index} CreatedAt {self.created_at}
+        Pair {self.address} Token {self.token} TokenIndex {self.token_index}
         Creator {self.creator} ReserveToken {self.reserve_token} ReserveEth {self.reserve_eth}
         ContractVerified {self.contract_verified} NumberTxMM {self.number_tx_mm} InspectAttempts {self.inspect_attempts} LastInspectedBlock {self.last_inspected_block}
         """
