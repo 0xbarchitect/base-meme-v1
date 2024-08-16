@@ -75,7 +75,6 @@ class PairInspector(metaclass=Singleton):
         r=requests.get(f"https://api.basescan.org/api?module=contract&action=getsourcecode&address={pair.token}&apikey={self.api_key}")
         if r.status_code==STATUS_CODE_SUCCESS:
             res=r.json()
-            #print(f"{res['result'][0].get('Library','')}")
             if int(res['status'])==1 and len(res['result'][0].get('Library',''))==0:
                 return True
                 
@@ -142,11 +141,12 @@ class PairInspector(metaclass=Singleton):
         if not result.contract_verified:
             return result
         
-        result.is_creator_call_contract=self.is_creator_call_contract(pair,from_block,block_number)
-        if result.is_creator_call_contract>0:
-            return result
+        if not is_initial:
+            result.is_creator_call_contract=self.is_creator_call_contract(pair,from_block,block_number)
+            if result.is_creator_call_contract>0:
+                return result
         
-        result.number_tx_mm=self.number_tx_mm(pair,from_block,block_number)
+            result.number_tx_mm=self.number_tx_mm(pair,from_block,block_number)
 
         simulator = Simulator(
             http_url=self.http_url,

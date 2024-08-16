@@ -129,9 +129,12 @@ class BlockWatcher(metaclass=Singleton):
                     try:
                         result = future.result()
                         logging.debug(f"WATCHER getReserves {pairs[idx].address} result {result}")
-                        pairs[idx].reserve_token = Web3.from_wei(result[0][0],'ether') if pairs[idx].token_index == 0 else Web3.from_wei(result[0][1], 'ether')
-                        pairs[idx].reserve_eth = Web3.from_wei(result[0][1],'ether') if pairs[idx].token_index == 0 else Web3.from_wei(result[0][0], 'ether')
-                        pairs[idx].creator = Web3.to_checksum_address(result[1])
+                        if result[0] is not None and len(result[0])>1:
+                            pairs[idx].reserve_token = Web3.from_wei(result[0][0],'ether') if pairs[idx].token_index == 0 else Web3.from_wei(result[0][1], 'ether')
+                            pairs[idx].reserve_eth = Web3.from_wei(result[0][1],'ether') if pairs[idx].token_index == 0 else Web3.from_wei(result[0][0], 'ether')
+                        
+                        if result[1] is not None:
+                            pairs[idx].creator = Web3.to_checksum_address(result[1])
                     except Exception as e:
                         logging.error(f"WATCHER getReserves {pairs[idx].address} error {e}")
 
