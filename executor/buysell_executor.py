@@ -56,7 +56,7 @@ class BuySellExecutor(BaseExecutor):
         bot = self.bot[account_id]
 
         try:
-            logging.info(f"account address {self.accounts[account_id].w3_account.address} in {amount_in} outMin {amount_out_min} deadline {deadline} isBuy {is_buy}")
+            logging.info(f"EXECUTOR Signer {self.accounts[account_id].w3_account.address} AmountIn {amount_in} AmountOutMin {amount_out_min} Deadline {deadline} IsBuy {is_buy}")
 
             # get nonce onchain
             nonce = self.w3.eth.get_transaction_count(signer)
@@ -74,7 +74,7 @@ class BuySellExecutor(BaseExecutor):
             tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
 
             logging.debug(f"tx receipt {tx_receipt}")
-            logging.info(f"{amount_in} tx hash {Web3.to_hex(tx_hash)} in block #{tx_receipt['blockNumber']} with status {tx_receipt['status']}")
+            logging.debug(f"{amount_in} tx hash {Web3.to_hex(tx_hash)} in block #{tx_receipt['blockNumber']} with status {tx_receipt['status']}")
 
             # send acknowledgement
             amount_out = 0
@@ -102,7 +102,7 @@ class BuySellExecutor(BaseExecutor):
                 bot=bot.address,
             )
 
-            logging.info(f"EXECUTOR ack {ack}")
+            logging.info(f"EXECUTOR Acknowledgement {ack}")
             self.report_sender.put(ack)
 
             return
@@ -166,7 +166,7 @@ class BuySellExecutor(BaseExecutor):
                     else:
                         logging.error(f"EXECUTOR not found signer for order {execution_data}")
             else:
-                logging.warning(f"invalid order {execution_data}")
+                logging.warning(f"EXECUTOR invalid order {execution_data}")
 
 
 if __name__ == "__main__":
