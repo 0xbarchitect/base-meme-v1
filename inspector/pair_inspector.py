@@ -71,10 +71,12 @@ class PairInspector(metaclass=Singleton):
         if pair.contract_verified:
             return True
 
-        r=requests.get(f"https://api.basescan.org/api?module=contract&action=getabi&address={pair.token}&apikey={self.api_key}")
+        #r=requests.get(f"https://api.basescan.org/api?module=contract&action=getabi&address={pair.token}&apikey={self.api_key}")
+        r=requests.get(f"https://api.basescan.org/api?module=contract&action=getsourcecode&address={pair.token}&apikey={self.api_key}")
         if r.status_code==STATUS_CODE_SUCCESS:
             res=r.json()
-            if int(res['status'])==1:
+            #print(f"{res['result'][0].get('Library','')}")
+            if int(res['status'])==1 and len(res['result'][0].get('Library',''))==0:
                 return True
                 
             
@@ -109,10 +111,10 @@ class PairInspector(metaclass=Singleton):
             return MaliciousPair.CREATOR_BLACKLISTED
         
         # TODO: consider rules of duplication creator
-        duplicate_pool_creator = console.models.Pair.objects.filter(creator=pair.creator.lower()).filter(created_at__gte=make_aware(datetime.datetime.now() - datetime.timedelta(30))).exclude(address=pair.address.lower()).first()
-        if duplicate_pool_creator is not None:
-            logging.warning(f"INSPECTOR malicious pair {pair.address} due to the same creator with other pair {duplicate_pool_creator.address}")
-            return MaliciousPair.CREATOR_DUPLICATED
+        # duplicate_pool_creator = console.models.Pair.objects.filter(creator=pair.creator.lower()).filter(created_at__gte=make_aware(datetime.datetime.now() - datetime.timedelta(30))).exclude(address=pair.address.lower()).first()
+        # if duplicate_pool_creator is not None:
+        #     logging.warning(f"INSPECTOR malicious pair {pair.address} due to the same creator with other pair {duplicate_pool_creator.address}")
+        #     return MaliciousPair.CREATOR_DUPLICATED
         
         return MaliciousPair.UNMALICIOUS
     
@@ -132,15 +134,13 @@ class PairInspector(metaclass=Singleton):
         if is_initial and not result.reserve_inrange:
             return result        
 
-        # TODO
-        # result.is_malicious=self.is_malicious(pair)
-        # if result.is_malicious != MaliciousPair.UNMALICIOUS:
-        #     return result
+        result.is_malicious=self.is_malicious(pair)
+        if result.is_malicious != MaliciousPair.UNMALICIOUS:
+            return result
 
-        # TODO
-        # result.contract_verified=self.is_contract_verified(pair)
-        # if not result.contract_verified:
-        #     return result
+        result.contract_verified=self.is_contract_verified(pair)
+        if not result.contract_verified:
+            return result
         
         result.is_creator_call_contract=self.is_creator_call_contract(pair,from_block,block_number)
         if result.is_creator_call_contract>0:
@@ -208,8 +208,7 @@ if __name__=="__main__":
 
     pair = Pair(
         address="0x022525b53d0789917c30272288392f088cc26f9d",
-        token="0xf2661d67f55279f42ac34f8ccb784f9cb985d6d3",
-        #token="0xf6C22b5BDE8c338E8c46B68f5fA8B0df90FFF414",
+        token="0xda667df6ce6e720621f3e1fac4247c74018c6890",
         token_index=1,
         reserve_eth=3,
         reserve_token=0,
@@ -221,10 +220,10 @@ if __name__=="__main__":
         last_inspected_block=0,
     )
 
-    # print("verified") if inspector.is_contract_verified(pair) else print(f"unverified")
+    print("verified") if inspector.is_contract_verified(pair) else print(f"unverified")
     # print(f"number called {inspector.is_creator_call_contract(pair, 18441043, 18441080)}")
     # print(f"number mm_tx {inspector.number_tx_mm(pair, 18441096, 18441130)}")
     # print(f"is malicious {inspector.is_malicious(pair)}")
 
-    inspector.inspect_batch([pair], 18441043, True)
+    #inspector.inspect_batch([pair], 18441043, True)
 

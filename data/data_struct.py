@@ -22,8 +22,8 @@ class Pair:
 
     def  __str__(self) -> str:
         return f"""
-        Pair {self.address} token {self.token} tokenIndex {self.token_index} reserve_token {self.reserve_token} reserve_eth {self.reserve_eth} createdAt {self.created_at}
-        creator {self.creator} contractVerified {self.contract_verified} numberTxMM {self.number_tx_mm} inspectAttempts {self.inspect_attempts} lastInspectedBlock {self.last_inspected_block}
+        Pair {self.address} Token {self.token} Creator {self.creator} ReserveToken {self.reserve_token} ReserveEth {self.reserve_eth}
+        ContractVerified {self.contract_verified} NumberTxMM {self.number_tx_mm} InspectAttempts {self.inspect_attempts} LastInspectedBlock {self.last_inspected_block}
         """
 
 class BlockData:

@@ -65,7 +65,7 @@ class Reporter(metaclass=Singleton):
                         reserve_token=pair.reserve_token,
                         reserve_eth=pair.reserve_eth,
                         deployed_at=make_aware(datetime.fromtimestamp(report.data.block_timestamp)),
-                        creator=pair.creator.lower(),
+                        creator=pair.creator.lower() if pair.creator is not None else None,
                     )
                     await pair_ins.asave()
                     logging.debug(f"pair saved with id #{pair_ins.id}")
@@ -149,14 +149,14 @@ class Reporter(metaclass=Singleton):
                 logging.debug(f"position tx exists id #{position_tx.id}")
 
         async def save_blacklist(data):
-            for bl in data:
-                blacklist = await BlackList.objects.filter(address=bl.lower()).afirst()
+            for addr in data:
+                blacklist = await BlackList.objects.filter(address=addr.lower()).afirst()
                 if blacklist is None:
-                    blacklist = BlackList(address=bl.lower())
+                    blacklist = BlackList(address=addr.lower())
                     await blacklist.asave()
-                    logging.info(f"REPORTER save {bl} to blacklist DB with id #{blacklist.id}")
+                    logging.info(f"REPORTER save {addr} to blacklist DB with id #{blacklist.id}")
                 else:
-                    logging.info(f"REPORTER blacklist {bl} exists")
+                    logging.info(f"REPORTER blacklist {addr} exists")
 
         try:
             if report.type == ReportDataType.BLOCK:

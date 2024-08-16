@@ -213,14 +213,17 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                                     pair.inspect_attempts += 1
                                     pair.last_inspected_block = block_data.block_number
                                     pair.number_tx_mm += result.number_tx_mm
-                                logging.info(f"MAIN update {pair} inspect attempts {pair.inspect_attempts}")
+                                logging.info(f"MAIN update upon inspect attempts {pair}")
 
-                            if pair.inspect_attempts >= MAX_INSPECT_ATTEMPTS and pair.number_tx_mm > NUMBER_TX_MM_THRESHOLD:
+                            if pair.inspect_attempts >= MAX_INSPECT_ATTEMPTS:
                                 with glb_lock:
                                     glb_watchlist.pop(idx)
+                                logging.warning(f"MAIN remove pair {pair.address} from watching list at index #{idx} caused by reaching max attempts {MAX_INSPECT_ATTEMPTS}")
 
-                                logging.warning(f"MAIN remove pair {pair.address} from watching list at index #{idx} caused by reaching max attempts {MAX_INSPECT_ATTEMPTS} and numberTxMM greater than {NUMBER_TX_MM_THRESHOLD}")
-                                send_exec_order(block_data, pair)
+                                if pair.number_tx_mm > NUMBER_TX_MM_THRESHOLD:
+                                    send_exec_order(block_data, pair)
+                                else:
+                                    logging.info(f"MAIN pair {pair.address} not qualified for order due to numberTxMM {pair.number_tx_mm} is not sufficient")
 
                 # remove simulation failed pair
                 failed_pairs = [pair.address for pair in inspection_batch if pair.address not in [result.simulation_result.pair.address for result in results if result.simulation_result is not None]]
