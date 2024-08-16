@@ -132,13 +132,15 @@ class PairInspector(metaclass=Singleton):
         if is_initial and not result.reserve_inrange:
             return result        
 
-        result.is_malicious=self.is_malicious(pair)
-        if result.is_malicious != MaliciousPair.UNMALICIOUS:
-            return result
+        # TODO
+        # result.is_malicious=self.is_malicious(pair)
+        # if result.is_malicious != MaliciousPair.UNMALICIOUS:
+        #     return result
 
-        result.contract_verified=self.is_contract_verified(pair)
-        if not result.contract_verified:
-            return result
+        # TODO
+        # result.contract_verified=self.is_contract_verified(pair)
+        # if not result.contract_verified:
+        #     return result
         
         result.is_creator_call_contract=self.is_creator_call_contract(pair,from_block,block_number)
         if result.is_creator_call_contract>0:

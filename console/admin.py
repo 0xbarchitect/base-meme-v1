@@ -63,7 +63,7 @@ class PositionAdmin(FullPermissionModelAdmin):
     inlines = [PositionTransactionInline]
 
     list_filter = ['is_deleted']
-    list_display = ('id', 'pair', 'signer', 'bot', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidated_at', 'liquidation_attempts', 'pnl', 'buttons')
+    list_display = ('id', 'pair', 'bot', 'amount', 'purchased_at', 'is_liquidated', 'liquidated_at', 'liquidation_attempts', 'pnl', 'buttons')
     fields = ('pair', 'signer', 'bot', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidated_at', 'liquidation_attempts', 'pnl',)
     readonly_fields = ('pair', 'signer', 'bot', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidated_at', 'liquidation_attempts', 'pnl',)
     

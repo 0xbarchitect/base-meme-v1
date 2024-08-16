@@ -215,11 +215,11 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                                     pair.number_tx_mm += result.number_tx_mm
                                 logging.info(f"MAIN update {pair} inspect attempts {pair.inspect_attempts}")
 
-                            if pair.inspect_attempts >= MAX_INSPECT_ATTEMPTS or pair.number_tx_mm > NUMBER_TX_MM_THRESHOLD:
+                            if pair.inspect_attempts >= MAX_INSPECT_ATTEMPTS and pair.number_tx_mm > NUMBER_TX_MM_THRESHOLD:
                                 with glb_lock:
                                     glb_watchlist.pop(idx)
 
-                                logging.warning(f"MAIN remove pair {pair.address} from watching list at index #{idx} caused by reaching max attempts {MAX_INSPECT_ATTEMPTS} or number tx mm {NUMBER_TX_MM_THRESHOLD}")
+                                logging.warning(f"MAIN remove pair {pair.address} from watching list at index #{idx} caused by reaching max attempts {MAX_INSPECT_ATTEMPTS} and numberTxMM greater than {NUMBER_TX_MM_THRESHOLD}")
                                 send_exec_order(block_data, pair)
 
                 # remove simulation failed pair
