@@ -245,15 +245,15 @@ if __name__ == "__main__":
         block_number=0,
         block_timestamp=0,
         pair=Pair(
-            address=Web3.to_checksum_address('0xc1a3a3e0462452355e2420c6ce0d5bb85f2664ce'),
-            token=Web3.to_checksum_address('0x3b644c60140d75301b696962f6be78fd3442ab27'),
+            address=Web3.to_checksum_address('0xd53c7614bda36a9e06e7b1feab6d345571006e7a'),
+            token=Web3.to_checksum_address('0xd47fd5dd2aa74422e832f6b919a8ed69ed116f81'),
             token_index=0,
         ),
         amount_in=0,
         amount_out_min=0,
         is_buy=False,
-        signer=Web3.to_checksum_address('0xecb137C67c93eA50b8C259F8A8D08c0df18222d9'),
-        bot=Web3.to_checksum_address('0xD33f84Ce91806D25d6b6C889e6B14489133d5152'),        
+        signer=Web3.to_checksum_address('0xe980767788694bfbd5934a51e508c1987bd29cd4'),
+        bot=Web3.to_checksum_address('0xbcd8d2824b815285b1e8e8574737fcb911efeae4'),        
         ))
 
     asyncio.run(executor.run())
