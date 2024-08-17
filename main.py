@@ -219,7 +219,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                                     glb_watchlist.pop(idx)
                                 logging.warning(f"MAIN remove pair {pair.address} from watching list at index #{idx} caused by reaching max attempts {MAX_INSPECT_ATTEMPTS}")
 
-                                if pair.number_tx_mm > NUMBER_TX_MM_THRESHOLD:
+                                if pair.number_tx_mm >= NUMBER_TX_MM_THRESHOLD:
                                     send_exec_order(block_data, pair)
                                 else:
                                     logging.info(f"MAIN pair {pair.address} not qualified for order due to numberTxMM {pair.number_tx_mm} is not sufficient")
