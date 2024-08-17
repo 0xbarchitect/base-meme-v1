@@ -11,11 +11,19 @@ import "./interfaces/IERC20.sol";
 
 import "./AbstractBot.sol";
 
-contract BootstrapBot is AbstractBot {
+contract BootstrapBot is Ownable {
   using SafeMath for uint256;
+  uint16 internal constant DEADLINE_BLOCK_DELAY = 10;
 
-  constructor(address router, address factory, address weth) 
-    AbstractBot(router, factory, weth){}
+  address private _router;
+  address private _factory;
+  address private _weth;
+
+  constructor(address router, address factory, address weth) {
+    _router = router;
+    _factory = factory;
+    _weth = weth;
+  }
 
   function approveToken(address router, address token, uint256 amount) external onlyOwner {
     IERC20(token).approve(router, amount);

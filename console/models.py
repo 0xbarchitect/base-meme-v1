@@ -118,4 +118,20 @@ class BlackList(models.Model):
     def __str__(self) -> str:
         return f"{self.address}"
     
+class Bot(models.Model):
+    class Meta():
+        db_table = 'bot'
+
+    id = models.BigAutoField(primary_key=True)
+    address = models.CharField(max_length=42, unique=True)
+    signer = models.CharField(max_length=42)
+    deployed_at = models.DateTimeField(null=True)
+
+    created_at = models.DateTimeField(null=True,auto_now_add=True)
+    updated_at = models.DateTimeField(null=True,auto_now=True)
+    is_deleted = models.IntegerField(null=True,default=0)
+
+    def __str__(self) -> str:
+        return f"{self.address}"
+    
 

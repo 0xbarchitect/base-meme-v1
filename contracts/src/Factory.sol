@@ -4,21 +4,21 @@ pragma solidity ^0.8.13;
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract Factory is Ownable {  
-  event BotCreated(address signer, address bot);
+  event BotCreated(address indexed owner, address bot);
 
   function createBot(address implementation,
     bytes32 salt,
-    address signer,
+    address owner,
     address router,
     address factory,
     address weth) external onlyOwner returns (address) {
     assembly {
-      //pop(signer)
+      //pop(owner)
       pop(router)
       pop(factory)
       pop(weth)
 
-      calldatacopy(0x8c, 0x44, 0x80) // copy (signer, router, factory, weth) total 4 bytes to memory, starts at 0x8c
+      calldatacopy(0x8c, 0x44, 0x80) // copy (owner, router, factory, weth) total 4 bytes to memory, starts at 0x8c
 
       mstore(0x6c, 0x5af43d82803e903d91602b57fd5bf3) // ERC-1167 footer, 15B length, laid out at 0x7d -> 0x8c
       mstore(0x5d, implementation) // implementation address, 20B length, laid out at 0x69 -> 0x7d
@@ -44,11 +44,10 @@ contract Factory is Ownable {
           }
 
           // Store account address in memory before salt and chainId
-          mstore(0x4c, signer)
-          mstore(0x6c, deployed)
+          mstore(0x4c, deployed)
 
           // emit event
-          log1(0x4c, 0x40, 0x7432e04fa82e37552c086d411ea5879c9f6024585cb7f7facbac1f64788dac23)
+          log2(0x4c, 0x20, 0x7432e04fa82e37552c086d411ea5879c9f6024585cb7f7facbac1f64788dac23, owner)
 
           // Return the account address
           return(0x6c, 0x20)
