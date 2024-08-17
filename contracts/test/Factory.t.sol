@@ -15,7 +15,7 @@ contract FactoryTest is Test, HelperContract {
   SnipeBot public snipeBot;
 
   error InitializedAlready();
-  event BotCreated(address owner, address bot);
+  event BotCreated(address indexed owner, address bot);
 
   fallback() external payable {}
 

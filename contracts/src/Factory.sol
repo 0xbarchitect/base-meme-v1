@@ -44,10 +44,10 @@ contract Factory is Ownable {
           }
 
           // Store account address in memory before salt and chainId
-          mstore(0x4c, deployed)
+          mstore(0x6c, deployed)
 
           // emit event
-          log2(0x4c, 0x20, 0x7432e04fa82e37552c086d411ea5879c9f6024585cb7f7facbac1f64788dac23, owner)
+          log2(0x6c, 0x20, 0x7432e04fa82e37552c086d411ea5879c9f6024585cb7f7facbac1f64788dac23, owner)
 
           // Return the account address
           return(0x6c, 0x20)
