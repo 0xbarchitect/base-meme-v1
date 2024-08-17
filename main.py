@@ -4,6 +4,8 @@ from multiprocessing import Process
 import threading
 import concurrent.futures
 
+from web3 import Web3
+
 import os
 import logging
 from decimal import Decimal
@@ -270,10 +272,10 @@ def inspect(pairs, block_number, is_initial=False) -> List[InspectionResult]:
     inspector = PairInspector(
         http_url=os.environ.get('HTTPS_URL'),
         api_key=os.environ.get('BASESCAN_API_KEY'),
-        signer=os.environ.get('EXECUTION_ADDRESSES').split(',')[0],
-        router=os.environ.get('ROUTER_ADDRESS'),
-        weth=os.environ.get('WETH_ADDRESS'),
-        bot=os.environ.get('INSPECTOR_BOT').split(',')[0],
+        signer=Web3.to_checksum_address(os.environ.get('EXECUTION_ADDRESSES').split(',')[0]),
+        router=Web3.to_checksum_address(os.environ.get('ROUTER_ADDRESS')),
+        weth=Web3.to_checksum_address(os.environ.get('WETH_ADDRESS')),
+        bot=Web3.to_checksum_address(os.environ.get('INSPECTOR_BOT').split(',')[0]),
         pair_abi=PAIR_ABI,
         weth_abi=WETH_ABI,
         bot_abi=BOT_ABI,
@@ -292,8 +294,8 @@ def execution_process(execution_broker, report_broker):
         max_fee_per_gas=MAX_FEE_PER_GAS,
         max_priority_fee_per_gas=MAX_PRIORITY_FEE_PER_GAS,
         deadline_delay=DEADLINE_DELAY_SECONDS,
-        weth=os.environ.get('WETH_ADDRESS'),
-        router=os.environ.get('ROUTER_ADDRESS'),
+        weth=Web3.to_checksum_address(os.environ.get('WETH_ADDRESS')),
+        router=Web3.to_checksum_address(os.environ.get('ROUTER_ADDRESS')),
         router_abi=ROUTER_ABI,
         erc20_abi=ERC20_ABI,
         pair_abi=PAIR_ABI,
