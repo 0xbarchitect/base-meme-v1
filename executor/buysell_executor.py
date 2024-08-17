@@ -27,7 +27,7 @@ class BuySellExecutor(BaseExecutor):
 
         self.bot = []
         if len(bot)>0 and bot_abi is not None:
-            self.bot = [self.w3.eth.contract(address=bot_address, abi=bot_abi) for bot_address in bot]
+            self.bot = [self.w3.eth.contract(address=Web3.to_checksum_address(bot_address), abi=bot_abi) for bot_address in bot]
         
         logging.info(f"EXECUTOR bots {self.bot}")
 
@@ -36,14 +36,14 @@ class BuySellExecutor(BaseExecutor):
         def prepare_tx_bot(signer, bot, nonce):
             tx = None            
             if is_buy:
-                tx = bot.functions.buy(pair.token, deadline).build_transaction({
+                tx = bot.functions.buy(Web3.to_checksum_address(pair.token), deadline).build_transaction({
                     "from": signer,
                     "nonce": nonce,
                     "gas": self.gas_limit,
                     "value": Web3.to_wei(amount_in, 'ether'),
                 })
             else:
-                tx = bot.functions.sell(pair.token, signer, deadline).build_transaction({
+                tx = bot.functions.sell(Web3.to_checksum_address(pair.token), signer, deadline).build_transaction({
                     "from": signer,
                     "nonce": nonce,
                     "gas": self.gas_limit,
@@ -79,7 +79,7 @@ class BuySellExecutor(BaseExecutor):
             # send acknowledgement
             amount_out = 0
             if tx_receipt['status'] == TxStatus.SUCCESS:
-                pair_contract = self.w3.eth.contract(address=pair.address, abi=self.pair_abi)
+                pair_contract = self.w3.eth.contract(address=Web3.to_checksum_address(pair.address), abi=self.pair_abi)
                 swap_logs = pair_contract.events.Swap().process_receipt(tx_receipt, errors=DISCARD)
                 logging.debug(f"swap logs {swap_logs[0]}")
 
@@ -204,56 +204,33 @@ if __name__ == "__main__":
         bot_abi=BOT_ABI,
     )
 
-    # queue jobs
+    # BUY
     # order_receiver.put(ExecutionOrder(
     #     block_number=0, 
     #     block_timestamp=0, 
     #     pair=Pair(
-    #         address='0x36F344CB80236a072516E04c9a1962D98A36a447',
-    #         token='0xC92ac7514057bE21789BF3662Ed7Ee645c0D402a',
-    #         token_index=1,
+    #         address='0x137eb40b169a30367fa352f1a5f3069a77c9a3f0',
+    #         token='0x1b0db1b116967ec132830e47b3fa8439a50ee417',
+    #         token_index=0,
     #     ) , 
     #     amount_in=0.00001,
     #     amount_out_min=0,
     #     is_buy=True))
     
-    # order_receiver.put(ExecutionOrder(
-    #     block_number=0, 
-    #     block_timestamp=0, 
-    #     pair=Pair(
-    #         address='0x36F344CB80236a072516E04c9a1962D98A36a447',
-    #         token='0xC92ac7514057bE21789BF3662Ed7Ee645c0D402a',
-    #         token_index=1,
-    #     ) , 
-    #     amount_in=0.00001,
-    #     amount_out_min=0,
-    #     is_buy=True))
-    
-    # order_receiver.put(ExecutionOrder(
-    #     block_number=0, 
-    #     block_timestamp=0, 
-    #     pair=Pair(
-    #         address='0x36F344CB80236a072516E04c9a1962D98A36a447',
-    #         token='0xC92ac7514057bE21789BF3662Ed7Ee645c0D402a',
-    #         token_index=1,
-    #     ) , 
-    #     amount_in=0.00001,
-    #     amount_out_min=0,
-    #     is_buy=True))
-    
+    # SELL
     order_receiver.put(ExecutionOrder(
         block_number=0,
         block_timestamp=0,
         pair=Pair(
-            address=Web3.to_checksum_address('0xd53c7614bda36a9e06e7b1feab6d345571006e7a'),
-            token=Web3.to_checksum_address('0xd47fd5dd2aa74422e832f6b919a8ed69ed116f81'),
+            address=Web3.to_checksum_address('0x137eb40b169a30367fa352f1a5f3069a77c9a3f0'),
+            token=Web3.to_checksum_address('0x1b0db1b116967ec132830e47b3fa8439a50ee417'),
             token_index=0,
         ),
+        signer=Web3.to_checksum_address('0xecb137C67c93eA50b8C259F8A8D08c0df18222d9'),
+        bot=Web3.to_checksum_address('0x731d1b977c2e8ea5c0ac6b169d3b8320b8ae85c8'),
         amount_in=0,
         amount_out_min=0,
-        is_buy=False,
-        signer=Web3.to_checksum_address('0xe980767788694bfbd5934a51e508c1987bd29cd4'),
-        bot=Web3.to_checksum_address('0xbcd8d2824b815285b1e8e8574737fcb911efeae4'),        
+        is_buy=False,    
         ))
 
     asyncio.run(executor.run())
