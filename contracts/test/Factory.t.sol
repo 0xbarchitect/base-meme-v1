@@ -32,7 +32,14 @@ contract FactoryTest is Test, HelperContract {
     snipeBot = new SnipeBot();
   }
 
-  function test_createBot() public {
+  function test_createBotRevertedDueUnauthorized() public {
+    vm.expectRevert();
+    vm.prank(address(1));
+
+    factory.createBot(address(snipeBot), keccak256(abi.encode(block.timestamp)), address(1), ROUTERV2, FACTORYV2, WETH);
+  }
+
+  function test_createBotSuccess() public {
     vm.expectEmit(true, false, false, false);
     emit BotCreated(address(this), address(0));
 

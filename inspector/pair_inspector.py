@@ -153,10 +153,10 @@ class PairInspector(metaclass=Singleton):
             signer=self.signer,
             router_address=self.router,
             weth=self.weth,
-            inspector=self.bot,
+            bot=self.bot,
             pair_abi=self.pair_abi,
             weth_abi=self.weth_abi,
-            inspector_abi=self.bot_abi,
+            bot_abi=self.bot_abi,
         )
 
         simulation_result = simulator.inspect_pair(pair, SIMULATION_AMOUNT)
@@ -192,38 +192,38 @@ if __name__=="__main__":
 
     PAIR_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/UniV2Pair.abi.json")
     WETH_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/WETH.abi.json")
-    INSPECTOR_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/InspectBot.abi.json")
+    BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/SnipeBot.abi.json")
 
     inspector = PairInspector(
         http_url=os.environ.get('HTTPS_URL'),
         api_key=os.environ.get('BASESCAN_API_KEY'),
-        signer=os.environ.get('EXECUTION_ADDRESSES').split(',')[0],
-        router=os.environ.get('ROUTER_ADDRESS'),
-        weth=os.environ.get('WETH_ADDRESS'),
-        bot=os.environ.get('INSPECTOR_BOT').split(',')[0],
+        signer=Web3.to_checksum_address(os.environ.get('EXECUTION_ADDRESSES').split(',')[0]),
+        router=Web3.to_checksum_address(os.environ.get('ROUTER_ADDRESS')),
+        weth=Web3.to_checksum_address(os.environ.get('WETH_ADDRESS')),
+        bot=Web3.to_checksum_address(os.environ.get('INSPECTOR_BOT').split(',')[0]),
         pair_abi=PAIR_ABI,
         weth_abi=WETH_ABI,
-        bot_abi=INSPECTOR_ABI,
+        bot_abi=BOT_ABI,
     )
 
     pair = Pair(
-        address="0x022525b53d0789917c30272288392f088cc26f9d",
-        token="0xda667df6ce6e720621f3e1fac4247c74018c6890",
+        address="0x137eb40b169a30367fa352f1a5f3069a77c9a3f0",
+        token="0x1b0db1b116967ec132830e47b3fa8439a50ee417",
         token_index=1,
         reserve_eth=3,
         reserve_token=0,
         created_at=0,
         inspect_attempts=1,
-        creator="0x7bed7b039bbda41c7822c5a520327063b53542d9",
+        creator="0x9b5cd354a9f370241bcd56a6c6c7bba4d8e263e1",
         contract_verified=False,
         number_tx_mm=0,
         last_inspected_block=0,
     )
 
-    print("verified") if inspector.is_contract_verified(pair) else print(f"unverified")
+    #print("verified") if inspector.is_contract_verified(pair) else print(f"unverified")
     # print(f"number called {inspector.is_creator_call_contract(pair, 18441043, 18441080)}")
     # print(f"number mm_tx {inspector.number_tx_mm(pair, 18441096, 18441130)}")
     # print(f"is malicious {inspector.is_malicious(pair)}")
 
-    #inspector.inspect_batch([pair], 18441043, True)
+    inspector.inspect_batch([pair], 18441043, True)
 

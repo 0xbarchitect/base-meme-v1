@@ -39,7 +39,7 @@ PAIR_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniV2Pair.abi.j
 WETH_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/WETH.abi.json")
 ROUTER_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniRouter.abi.json")
 FACTORY_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniV2Factory.abi.json")
-BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/InspectBot.abi.json")
+BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/SnipeBot.abi.json")
 
 # simulation conditions
 WATCHING_ONLY=int(os.environ.get('WATCHING_ONLY', '0'))
@@ -133,7 +133,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
         logging.info(f"[{glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}] PnL {glb_daily_pnl[1]}")
 
         if WATCHING_ONLY==1:
-            logging.info(f"Hi, watching only =))...")
+            logging.info(f"I'm happy watching =))...")
             continue
 
         if len(glb_inventory)>0:
@@ -284,7 +284,7 @@ def inspect(pairs, block_number, is_initial=False) -> List[InspectionResult]:
 def execution_process(execution_broker, report_broker):
     executor = BuySellExecutor(
         http_url=os.environ.get('HTTPS_URL'),
-        treasury_key=os.environ.get('PRIVATE_KEY'),
+        treasury_key=os.environ.get('MANAGER_KEY'),
         executor_keys=os.environ.get('EXECUTION_KEYS').split(','),
         order_receiver=execution_broker,
         report_sender=report_broker,

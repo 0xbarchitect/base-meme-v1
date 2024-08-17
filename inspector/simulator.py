@@ -27,10 +27,10 @@ class Simulator:
                  signer, 
                  router_address, 
                  weth,
-                 inspector,
+                 bot,
                  pair_abi,
                  weth_abi,
-                 inspector_abi,
+                 bot_abi,
                  ):
         logging.debug(f"start simulation...")
 
@@ -43,19 +43,19 @@ class Simulator:
         self.w3 = Web3(Web3.HTTPProvider(http_url))
         self.pair_abi = pair_abi
         self.weth_contract = self.w3.eth.contract(address=weth, abi=weth_abi)
-        self.inspector = self.w3.eth.contract(address=inspector, abi=inspector_abi)
+        self.bot = self.w3.eth.contract(address=bot, abi=bot_abi)
 
     @timer_decorator
     def inspect_token_by_transfer(self, token, amount):
         try:
             balance_index = calculate_balance_storage_index(self.signer,0)
-            allowance_index = calculate_allowance_storage_index(self.signer, self.inspector.address,1)
+            allowance_index = calculate_allowance_storage_index(self.signer, self.bot.address,1)
             
             # result = self.w3.eth.call({
             #     'from': self.signer,
             #     'to': token,
             #     'data': bytes.fromhex(
-            #         func_selector('transfer(address,uint256)') + encode_address(self.inspector.address) + encode_uint(amount)
+            #         func_selector('transfer(address,uint256)') + encode_address(self.bot.address) + encode_uint(amount)
             #     )
             # }, 'latest', {
             #     token: {
@@ -70,7 +70,7 @@ class Simulator:
             #     'from': self.signer,
             #     'to': token,
             #     'data': bytes.fromhex(
-            #         func_selector('allowance(address,address)') + encode_address(self.signer) + encode_address(self.inspector.address)
+            #         func_selector('allowance(address,address)') + encode_address(self.signer) + encode_address(self.bot.address)
             #     )
             # }, 'latest', {
             #     token: {
@@ -84,7 +84,7 @@ class Simulator:
 
             result = self.w3.eth.call({
                 'from': self.signer,
-                'to': self.inspector.address,
+                'to': self.bot.address,
                 'data': bytes.fromhex(
                     func_selector('inspect_transfer(address,uint256)') + encode_address(token) + encode_uint(Web3.to_wei(amount, 'ether'))
                 )
@@ -113,7 +113,7 @@ class Simulator:
             # buy
             result = self.w3.eth.call({
                 'from': self.signer,
-                'to': self.inspector.address,
+                'to': self.bot.address,
                 'value': Web3.to_wei(amount, 'ether'),
                 'data': bytes.fromhex(
                     func_selector('buy(address,uint256)') + encode_address(token) + encode_uint(int(time.time()) + 1000)
@@ -132,11 +132,11 @@ class Simulator:
             logging.debug(f"SIMULATOR buy result {resultBuy}")
 
             # sell
-            storage_index = calculate_balance_storage_index(self.inspector.address, 0)
+            storage_index = calculate_balance_storage_index(self.bot.address, 0)
 
             result = self.w3.eth.call({
                 'from': self.signer,
-                'to': self.inspector.address,
+                'to': self.bot.address,
                 'data': bytes.fromhex(
                     func_selector('sell(address,address,uint256)') + encode_address(token) + encode_address(self.signer) + encode_uint(int(time.time()) + 1000)
                 )
@@ -186,21 +186,22 @@ if __name__ == '__main__':
 
     PAIR_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/UniV2Pair.abi.json")
     WETH_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/WETH.abi.json")
-    INSPECTOR_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/InspectBot.abi.json")
+    BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/SnipeBot.abi.json")
 
     ETH_BALANCE = 1000
     GAS_LIMIT = 200*10**3
     FEE_BPS = 25
 
-    simulator = Simulator(os.environ.get('HTTPS_URL'),
-                            os.environ.get('EXECUTION_ADDRESSES').split(',')[2],
-                            os.environ.get('ROUTER_ADDRESS'),
-                            os.environ.get('WETH_ADDRESS'),
-                            os.environ.get('INSPECTOR_BOT').split(',')[2],
-                            PAIR_ABI,
-                            WETH_ABI,
-                            INSPECTOR_ABI,
-                            )
+    simulator = Simulator(
+                    http_url=os.environ.get('HTTPS_URL'),
+                    signer=Web3.to_checksum_address(os.environ.get('EXECUTION_ADDRESSES').split(',')[0]),
+                    router_address=Web3.to_checksum_address(os.environ.get('ROUTER_ADDRESS')),
+                    weth=Web3.to_checksum_address(os.environ.get('WETH_ADDRESS')),
+                    bot=Web3.to_checksum_address(os.environ.get('INSPECTOR_BOT').split(',')[0]),
+                    pair_abi=PAIR_ABI,
+                    weth_abi=WETH_ABI,
+                    bot_abi=BOT_ABI,
+                    )
     
     result=simulator.inspect_pair(Pair(
         address='0xd7ed0bce6b99acc642e905f0572a18069b7f262d',

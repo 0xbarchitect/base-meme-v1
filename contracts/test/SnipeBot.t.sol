@@ -58,14 +58,27 @@ contract SnipeBotTest is Test, HelperContract {
     bootstrapBot.addLiquidity{value: INITIAL_AVAX_RESERVE}(address(token), TOTAL_SUPPLY/2);
   }
 
-  function test_buy() public {
+  function test_BuyRevertedDueUnauthorized() public{
+    vm.expectRevert();
+    vm.prank(address(1));
+
+    snipeBot.buy{value: INSPECT_VALUE}(address(token), block.timestamp + DEADLINE_BLOCK_DELAY);
+  }
+
+  function test_BuySuccess() public {
     uint[] memory amounts = snipeBot.buy{value: INSPECT_VALUE}(address(token), block.timestamp + DEADLINE_BLOCK_DELAY);
 
     assertEq(amounts[0], INSPECT_VALUE);
     assertGt(amounts[1], 0);
   }
 
-  function test_sell() public {
+  function test_SellRevertedDueUnauthorized() public {
+    vm.expectRevert();
+    vm.prank(address(1));
+    snipeBot.sell(address(token), address(this), block.timestamp + DEADLINE_BLOCK_DELAY);
+  }
+
+  function test_SellSuccess() public {
     uint[] memory amountBuy = snipeBot.buy{value: INSPECT_VALUE}(address(token), block.timestamp + DEADLINE_BLOCK_DELAY);
     uint[] memory amountSell = snipeBot.sell(address(token), address(this), block.timestamp + DEADLINE_BLOCK_DELAY);
 
@@ -73,10 +86,15 @@ contract SnipeBotTest is Test, HelperContract {
     assertGt(amountSell[1], INSPECT_VALUE*9/10);
   }
 
-  function test_inspect_transfer() public {
+  function test_InspectTransferRevertedDueUnauthorized() public {
+    vm.expectRevert();
+    vm.prank(address(1));
+    snipeBot.inspect_transfer(address(token), TOTAL_SUPPLY/4);
+  }
+
+  function test_InspectTransferSuccess() public {
     token.approve(address(snipeBot), TOTAL_SUPPLY/4);
     uint256 received = snipeBot.inspect_transfer(address(token), TOTAL_SUPPLY/4);
-
     assertEq(received, TOTAL_SUPPLY/4);
   }
 

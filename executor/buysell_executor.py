@@ -178,7 +178,7 @@ if __name__ == "__main__":
     WETH_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/WETH.abi.json")
     ERC20_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/ERC20.abi.json")
     PAIR_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/UniV2Pair.abi.json")
-    BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/InspectBot.abi.json")
+    BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/SnipeBot.abi.json")
 
     import aioprocessing
 
@@ -187,7 +187,7 @@ if __name__ == "__main__":
 
     executor = BuySellExecutor(
         http_url=os.environ.get('HTTPS_URL'),
-        treasury_key=os.environ.get('PRIVATE_KEY'),
+        treasury_key=os.environ.get('MANAGER_KEY'),
         executor_keys=os.environ.get('EXECUTION_KEYS').split(','),
         order_receiver=order_receiver,
         report_sender=report_sender,
