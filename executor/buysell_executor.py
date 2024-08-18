@@ -1,4 +1,5 @@
 import asyncio
+import aioprocessing
 import os
 import logging
 import time
@@ -11,10 +12,12 @@ from web3.logs import STRICT, IGNORE, DISCARD, WARN
 import sys # for testing
 sys.path.append('..')
 
-from helpers import timer_decorator, load_abi
+from helpers import timer_decorator, load_abi, constants
 from executor import BaseExecutor
-from data import ExecutionOrder, Pair, ExecutionAck, TxStatus
+from data import ExecutionOrder, Pair, ExecutionAck, TxStatus, BotCreationOrder, Bot, BotUpdateOrder
 from factory import BotFactory
+
+BOT_MAX_NUMBER_USED=int(os.environ.get('BOT_MAX_NUMBER_USED'))
 
 class BuySellExecutor(BaseExecutor):
     def __init__(self, http_url, treasury_key, executor_keys, order_receiver, report_sender, \
@@ -27,7 +30,7 @@ class BuySellExecutor(BaseExecutor):
         self.erc20_abi = erc20_abi
         self.pair_abi = pair_abi
 
-        # TODO
+        # bot factoty initialize
         self.bot_order_broker = aioprocessing.AioQueue()
         self.bot_result_broker = aioprocessing.AioQueue()
         self.bot_factory = BotFactory(
@@ -42,17 +45,14 @@ class BuySellExecutor(BaseExecutor):
             pair_factory=pair_factory,
             weth=weth,
         )
-        # self.bot = []
-        # if len(bot)>0 and bot_abi is not None:
-        #     self.bot = [self.w3.eth.contract(address=Web3.to_checksum_address(bot_address), abi=bot_abi) for bot_address in bot]
-        for acct in self.accounts:
-            pass
-            
         
-        logging.info(f"EXECUTOR bots {self.bot}")
+        self.bot_abi = bot_abi
+        for acct in self.accounts:
+            self.bot_order_broker.put(BotCreationOrder(owner=acct.w3_account.address))
+            
 
     @timer_decorator
-    def execute(self, account_id, lead_block, is_buy, pair, amount_in, amount_out_min, deadline):
+    def execute(self, idx, lead_block, is_buy, pair, amount_in, amount_out_min, deadline):
         def prepare_tx_bot(signer, bot, nonce):
             tx = None            
             if is_buy:
@@ -71,12 +71,12 @@ class BuySellExecutor(BaseExecutor):
 
             return tx
         
-        signer = self.accounts[account_id].w3_account.address
-        priv_key = self.accounts[account_id].private_key
-        bot = self.bot[account_id]
+        signer = self.accounts[idx].w3_account.address
+        priv_key = self.accounts[idx].private_key
+        bot = self.w3.eth.contract(address=Web3.to_checksum_address(self.accounts[idx].bot.address),abi=self.bot_abi)
 
         try:
-            logging.info(f"EXECUTOR Signer {self.accounts[account_id].w3_account.address} AmountIn {amount_in} AmountOutMin {amount_out_min} Deadline {deadline} IsBuy {is_buy}")
+            logging.info(f"EXECUTOR Signer {signer} AmountIn {amount_in} AmountOutMin {amount_out_min} Deadline {deadline} IsBuy {is_buy}")
 
             # get nonce onchain
             nonce = self.w3.eth.get_transaction_count(signer)
@@ -125,27 +125,51 @@ class BuySellExecutor(BaseExecutor):
             logging.info(f"EXECUTOR Acknowledgement {ack}")
             self.report_sender.put(ack)
 
-            return
         except Exception as e:
             logging.error(f"EXECUTOR order {pair} amountIn {amount_in} isBuy {is_buy} catch exception {e}")
+            ack = ExecutionAck(
+                lead_block=lead_block,
+                block_number=lead_block,
+                tx_hash='0x',
+                tx_status=TxStatus.FAILED,
+                pair=pair,
+                amount_in=amount_in,
+                amount_out=0,
+                is_buy=is_buy,
+                signer=signer,
+                bot=bot.address,
+            )
 
-        ack = ExecutionAck(
-            lead_block=lead_block,
-            block_number=lead_block,
-            tx_hash='0x',
-            tx_status=TxStatus.FAILED,
-            pair=pair,
-            amount_in=amount_in,
-            amount_out=0,
-            is_buy=is_buy,
-            signer=signer,
-            bot=bot.address,
-        )
+            logging.info(f"EXECUTOR failed execution ack {ack}")
+            self.report_sender.put(ack)
 
-        logging.info(f"EXECUTOR failed execution ack {ack}")
-        self.report_sender.put(ack)
+        # update bot status
+        self.bot_factory.order_broker.put(BotUpdateOrder(self.accounts[idx].bot,ack))
+        if ack.is_buy:
+            self.accounts[idx].bot.is_holding=True
+        else:
+            self.accounts[idx].bot.is_holding=False
+            self.accounts[idx].bot.number_used=self.accounts[idx].bot.number_used+1
+            if ack.tx_status != constants.TX_SUCCESS_STATUS:
+                self.accounts[idx].bot.is_failed=True
 
-    async def run(self):
+            if self.accounts[idx].bot.number_used>=BOT_MAX_NUMBER_USED or self.accounts[idx].bot.is_failed:
+                logging.warning(f"EXECUTOR bot {self.accounts[idx].bot.address} of account {signer} reached max usage {BOT_MAX_NUMBER_USED} or failure, replace it with new created bot")
+                self.accounts[idx].bot = None
+                self.bot_factory.order_broker.put(BotCreationOrder(self.accounts[idx].w3_account.address))
+
+    async def handle_bot_result(self):
+        while True:
+            result = await self.bot_result_broker.coro_get()
+
+            if result is not None and isinstance(result, Bot):
+                logging.debug(f"EXECUTOR bot created {result}")
+                for idx,acct in enumerate(self.accounts):
+                    if (acct.bot is None or acct.bot.number_used >= BOT_MAX_NUMBER_USED or acct.bot.is_failed) and acct.w3_account.address.lower()==result.owner.lower():
+                        logging.info(f"EXECUTOR created bot {result} for account #{idx} {acct.w3_account.address}")
+                        acct.bot = result
+
+    async def handle_execution_order(self):
         logging.info(f"EXECUTOR listen for order...")
         executor = ThreadPoolExecutor(max_workers=len(self.accounts))
         counter = 0
@@ -158,15 +182,20 @@ class BuySellExecutor(BaseExecutor):
                 
                 if execution_data.signer is None:
                     counter += 1
-                    future = executor.submit(self.execute, 
-                                            (counter - 1) % len(self.accounts),
-                                            execution_data.block_number,
-                                            execution_data.is_buy,
-                                            execution_data.pair,
-                                            execution_data.amount_in,
-                                            execution_data.amount_out_min, 
-                                            deadline,
-                                            )
+                    idx = (counter - 1) % len(self.accounts)
+
+                    if self.accounts[idx].bot is not None:
+                        future = executor.submit(self.execute, 
+                                                idx,
+                                                execution_data.block_number,
+                                                execution_data.is_buy,
+                                                execution_data.pair,
+                                                execution_data.amount_in,
+                                                execution_data.amount_out_min, 
+                                                deadline,
+                                                )
+                    else:
+                        logging.warning(f"EXECUTOR order dropped due to account #{idx} {self.accounts[idx].w3_account.address} has no bot")
                 else:
                     idx = None
                     for idx, acct in enumerate(self.accounts):
@@ -188,6 +217,8 @@ class BuySellExecutor(BaseExecutor):
             else:
                 logging.warning(f"EXECUTOR invalid order {execution_data}")
 
+    async def run(self):
+        await asyncio.gather(self.handle_execution_order(), self.bot_factory.run(), self.handle_bot_result())
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
@@ -199,8 +230,7 @@ if __name__ == "__main__":
     ERC20_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/ERC20.abi.json")
     PAIR_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/UniV2Pair.abi.json")
     BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/SnipeBot.abi.json")
-
-    import aioprocessing
+    BOT_FACTORY_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/BotFactory.abi.json")
 
     order_receiver = aioprocessing.AioQueue()
     report_sender = aioprocessing.AioQueue()
@@ -222,35 +252,46 @@ if __name__ == "__main__":
         pair_abi=PAIR_ABI,
         bot=os.environ.get('INSPECTOR_BOT').split(','),
         bot_abi=BOT_ABI,
+        manager_key=os.environ.get('MANAGER_KEY'),
+        bot_factory=os.environ.get('BOT_FACTORY'),
+        bot_factory_abi=BOT_FACTORY_ABI,
+        bot_implementation=os.environ.get('BOT_IMPLEMENTATION'),
+        pair_factory=os.environ.get('FACTORY_ADDRESS'),
     )
 
-    # BUY
-    # order_receiver.put(ExecutionOrder(
-    #     block_number=0, 
-    #     block_timestamp=0, 
-    #     pair=Pair(
-    #         address='0x137eb40b169a30367fa352f1a5f3069a77c9a3f0',
-    #         token='0x1b0db1b116967ec132830e47b3fa8439a50ee417',
-    #         token_index=0,
-    #     ) , 
-    #     amount_in=0.00001,
-    #     amount_out_min=0,
-    #     is_buy=True))
-    
-    # SELL
-    order_receiver.put(ExecutionOrder(
-        block_number=0,
-        block_timestamp=0,
-        pair=Pair(
-            address=Web3.to_checksum_address('0x137eb40b169a30367fa352f1a5f3069a77c9a3f0'),
-            token=Web3.to_checksum_address('0x1b0db1b116967ec132830e47b3fa8439a50ee417'),
-            token_index=0,
-        ),
-        signer=Web3.to_checksum_address('0xecb137C67c93eA50b8C259F8A8D08c0df18222d9'),
-        bot=Web3.to_checksum_address('0x731d1b977c2e8ea5c0ac6b169d3b8320b8ae85c8'),
-        amount_in=0,
-        amount_out_min=0,
-        is_buy=False,    
-        ))
+    async def simulate_order():
+        await asyncio.sleep(5) # waiting for bot is fully initialized
 
-    asyncio.run(executor.run())
+        # BUY
+        # order_receiver.put(ExecutionOrder(
+        #     block_number=0, 
+        #     block_timestamp=0, 
+        #     pair=Pair(
+        #         address='0x6bc274fcadfc651d74fa53a74f7f83dde15e0d09',
+        #         token='0x054caee1f9528cc546365fb4d19dde5007ede351',
+        #         token_index=0,
+        #     ) , 
+        #     amount_in=0.00001,
+        #     amount_out_min=0,
+        #     is_buy=True))
+        
+        # SELL
+        order_receiver.put(ExecutionOrder(
+            block_number=0,
+            block_timestamp=0,
+            pair=Pair(
+                address='0x6bc274fcadfc651d74fa53a74f7f83dde15e0d09',
+                token='0x054caee1f9528cc546365fb4d19dde5007ede351',
+                token_index=0,
+            ),
+            signer='0xecb137C67c93eA50b8C259F8A8D08c0df18222d9',
+            amount_in=0,
+            amount_out_min=0,
+            is_buy=False,    
+            ))
+
+    async def main_loop():
+        await asyncio.gather(executor.run(), simulate_order())
+    
+    #asyncio.run(executor.run())
+    asyncio.run(main_loop())

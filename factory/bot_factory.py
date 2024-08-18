@@ -13,8 +13,8 @@ import sys # for testing
 sys.path.append('..')
 
 from library import Singleton
-from data import W3Account, BotCreationOrder, Bot
-from helpers import timer_decorator, load_abi
+from data import W3Account, BotCreationOrder, Bot, BotUpdateOrder, ExecutionAck
+from helpers import timer_decorator, load_abi, constants
 
 import django
 from django.utils.timezone import make_aware
@@ -24,7 +24,7 @@ django.setup()
 import console.models
 
 GAS_LIMIT = 200*10**3
-TX_SUCCESS_STATUS = 1
+BOT_MAX_NUMBER_USED=int(os.environ.get('BOT_MAX_NUMBER_USED'))
 
 class BotFactory(metaclass=Singleton):
     @timer_decorator
@@ -44,23 +44,22 @@ class BotFactory(metaclass=Singleton):
         self.w3.eth.default_account = self.manager.address
 
         self.bot_factory = self.w3.eth.contract(address=bot_factory,abi=bot_factory_abi)
-        self.bot_implementation = bot_implementation
+        self.bot_implementation = Web3.to_checksum_address(bot_implementation)
 
-        self.router = router
-        self.pair_factory = pair_factory
-        self.weth = weth
+        self.router = Web3.to_checksum_address(router)
+        self.pair_factory = Web3.to_checksum_address(pair_factory)
+        self.weth = Web3.to_checksum_address(weth)
 
     @timer_decorator
     def create_bot(self, owner) -> None:
         try:
             nonce = self.w3.eth.get_transaction_count(self.manager.address)
-
-            tx = self.bot_factory.functions.createBot(Web3.to_checksum_address(self.bot_implementation),
+            tx = self.bot_factory.functions.createBot(self.bot_implementation,
                                                     Web3.keccak(text=str(time.time())),
                                                     Web3.to_checksum_address(owner),
-                                                    Web3.to_checksum_address(self.router),
-                                                    Web3.to_checksum_address(self.pair_factory),
-                                                    Web3.to_checksum_address(self.weth),
+                                                    self.router,
+                                                    self.pair_factory,
+                                                    self.weth,
                                                     ).build_transaction({
                                                         "from": self.manager.address,
                                                         "nonce": nonce,
@@ -69,13 +68,13 @@ class BotFactory(metaclass=Singleton):
             tx_hash = self.w3.eth.send_transaction(tx)
             tx_receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
             
-            if tx_receipt['status'] == TX_SUCCESS_STATUS:
+            if tx_receipt['status'] == constants.TX_SUCCESS_STATUS:
                 bot_created_logs = self.bot_factory.events.BotCreated().process_receipt(tx_receipt)
                 logging.info(f"FACTORY successfully create bot with owner {owner} at {bot_created_logs[0]['args']['bot']}")
 
                 return Bot(
-                    address=Web3.to_checksum_address(bot_created_logs[0]['args']['bot']),
-                    owner=Web3.to_checksum_address(bot_created_logs[0]['args']['owner']),
+                    address=bot_created_logs[0]['args']['bot'],
+                    owner=bot_created_logs[0]['args']['owner'],
                     deployed_at=int(time.time()),
                     number_used=0,
                     is_failed=False
@@ -92,23 +91,54 @@ class BotFactory(metaclass=Singleton):
 
             if order is not None and isinstance(order, BotCreationOrder):
                 logging.info(f"FACTORY receive order {order}")
-                bot = self.create_bot(order.owner)
-                if bot is not None and isinstance(bot, Bot):
-                    # save to DB
-                    obj = console.models.Bot(
-                        address=bot.address.lower(),
-                        owner=bot.owner.lower(),
-                        deployed_at=make_aware(datetime.now()),
-                        number_used=0,
-                        is_failed=False,
-                    )
-                    await obj.asave()
-                    logging.info(f"FACTORY save bot to DB #{obj.id}")
+                # query from DB
+                bot = await console.models.Bot.objects.filter(owner=order.owner.lower()).filter(number_used__lt=BOT_MAX_NUMBER_USED).filter(is_failed=False).afirst()
+                if bot is not None:
+                    logging.info(f"FACTORY found available bot #{bot.id} from DB")
 
                     # send result via broker
-                    self.result_broker.put(bot)
+                    self.result_broker.put(Bot(
+                        address=bot.address,
+                        owner=bot.owner,
+                        deployed_at=int(datetime.timestamp(bot.deployed_at)),
+                        number_used=bot.number_used,
+                        is_failed=bot.is_failed,
+                    ))
                 else:
-                    logging.error(f"FACTORY create bot for owner {order.owner} failed")
+                    bot = self.create_bot(order.owner)
+                    if bot is not None and isinstance(bot, Bot):
+                        # save to DB
+                        obj = console.models.Bot(
+                            address=bot.address.lower(),
+                            owner=bot.owner.lower(),
+                            deployed_at=make_aware(datetime.now()),
+                            number_used=0,
+                            is_failed=False,
+                        )
+                        await obj.asave()
+                        logging.info(f"FACTORY save bot to DB #{obj.id}")
+
+                        # send result via broker
+                        self.result_broker.put(bot)
+                    else:
+                        logging.error(f"FACTORY create bot for owner {order.owner} failed")
+            elif order is not None and isinstance(order, BotUpdateOrder):
+                logging.info(f"FACTORY receive order update {order.bot} status")
+
+                bot = await console.models.Bot.objects.filter(address=order.bot.address.lower()).afirst()
+                if bot is not None:
+                    if order.execution_ack.is_buy:
+                        bot.is_holding=True
+                        await bot.asave()
+                    else:
+                        bot.is_holding=False
+                        bot.number_used=bot.number_used+1
+                        if order.execution_ack.tx_status != constants.TX_SUCCESS_STATUS:
+                            bot.is_failed=True
+                        await bot.asave()
+                    logging.info(f"FACTORY updated status for bot {bot}")
+                else:
+                    logging.warning(f"FACTORY not found bot {bot} to update")
             else:
                 logging.error(f"FACTORY invalid order {order}")
 

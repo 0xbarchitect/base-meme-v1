@@ -128,6 +128,7 @@ class Bot(models.Model):
     deployed_at = models.DateTimeField(null=True)
     number_used = models.IntegerField(null=True, default=0)
     is_failed = models.BooleanField(null=True, default=False)
+    is_holding = models.BooleanField(null=True, default=False)
 
     created_at = models.DateTimeField(null=True,auto_now_add=True)
     updated_at = models.DateTimeField(null=True,auto_now=True)

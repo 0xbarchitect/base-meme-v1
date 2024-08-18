@@ -42,6 +42,7 @@ WETH_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/WETH.abi.json")
 ROUTER_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniRouter.abi.json")
 FACTORY_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/UniV2Factory.abi.json")
 BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/SnipeBot.abi.json")
+BOT_FACTORY_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/BotFactory.abi.json")
 
 # simulation conditions
 WATCHING_ONLY=int(os.environ.get('WATCHING_ONLY', '0'))
@@ -301,6 +302,11 @@ def execution_process(execution_broker, report_broker):
         pair_abi=PAIR_ABI,
         bot=os.environ.get('INSPECTOR_BOT').split(','),
         bot_abi=BOT_ABI,
+        manager_key=os.environ.get('MANAGER_KEY'),
+        bot_factory=os.environ.get('BOT_FACTORY'),
+        bot_factory_abi=BOT_FACTORY_ABI,
+        bot_implementation=os.environ.get('BOT_IMPLEMENTATION'),
+        pair_factory=os.environ.get('FACTORY_ADDRESS'),
     )
 
     asyncio.run(executor.run())

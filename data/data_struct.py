@@ -96,10 +96,26 @@ class ReportData:
         Report type #{self.type} data {self.data}
         """
 
+class Bot:
+    def __init__(self, address, owner, deployed_at, number_used, is_failed, is_holding=False) -> None:
+        self.address = address
+        self.owner = owner
+        self.deployed_at = deployed_at
+        self.number_used = number_used
+        self.is_failed = is_failed
+        self.is_holding = is_holding
+
+    def __str__(self) -> str:
+        return f"""
+        Bot {self.address} Owner {self.owner} DeployedAt {self.deployed_at}
+        NumberUsed {self.number_used} IsFailed {self.is_failed} IsHolding {self.is_holding}
+        """
+    
 class W3Account:
-    def __init__(self, w3_account, private_key, bot=None) -> None:
+    def __init__(self, w3_account, private_key, bot:Bot = None) -> None:
         self.w3_account = w3_account
         self.private_key = private_key
+        self.bot = bot
 
 class SimulationResult:
     def __init__(self, pair, amount_in, amount_out, slippage, amount_token=0) -> None:
@@ -167,20 +183,6 @@ class InspectionResult:
         CreatorCallContract {self.is_creator_call_contract} NumberTxMM {self.number_tx_mm}
         SimulationResult {self.simulation_result}
         """
-    
-class Bot:
-    def __init__(self, address, owner, deployed_at, number_used, is_failed) -> None:
-        self.address = address
-        self.owner = owner
-        self.deployed_at = deployed_at
-        self.number_used = number_used
-        self.is_failed = is_failed
-
-    def __str__(self) -> str:
-        return f"""
-        Bot {self.address} Owner {self.owner} DeployedAt {self.deployed_at}
-        NumberUsed {self.number_used} IsFailed {self.is_failed}
-        """
 
 class BotCreationOrder:
     def __init__(self, owner) -> None:
@@ -188,3 +190,11 @@ class BotCreationOrder:
 
     def __str__(self) -> str:
         return f"BotCreationOrder owner {self.owner}"
+    
+class BotUpdateOrder:
+    def __init__(self, bot:Bot, execution_ack: ExecutionAck) -> None:
+        self.bot = bot
+        self.execution_ack = execution_ack
+
+    def __str__(self) -> str:
+        return f"UpdateBotOrder for {self.bot.address} with execution ack {self.execution_ack.tx_hash}"

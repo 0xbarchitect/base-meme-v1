@@ -10,6 +10,7 @@ sys.path.append('..')
 
 from library import Singleton
 from data import ReportData, ReportDataType, BlockData, Pair, ExecutionAck
+from helpers import constants
 
 import django
 from django.utils.timezone import make_aware
@@ -20,7 +21,6 @@ from console.models import Block, Transaction, Position, PositionTransaction, Bl
 import console.models
 
 BUY_AMOUNT=float(os.environ.get('BUY_AMOUNT'))
-#GAS_COST=2*10**-6
 GAS_COST=float(os.environ.get('GAS_COST_GWEI'))*10**-9
 
 class Reporter(metaclass=Singleton):
@@ -131,7 +131,6 @@ class Reporter(metaclass=Singleton):
                     position.sell_price=Decimal(execution_ack.amount_out)/Decimal(execution_ack.amount_in) if execution_ack.amount_in>0 and not execution_ack.is_buy else 0
                     position.liquidation_attempts=position.liquidation_attempts+1
                     
-                    #position.pnl=(Decimal(position.sell_price)/Decimal(position.buy_price)-Decimal(1))*Decimal(100)
                     position.pnl=(Decimal(execution_ack.amount_out)-Decimal(BUY_AMOUNT)-Decimal(GAS_COST))/Decimal(BUY_AMOUNT)*Decimal(100) if execution_ack.amount_in>0 and not execution_ack.is_buy else 0
 
                     await position.asave()
@@ -146,7 +145,7 @@ class Reporter(metaclass=Singleton):
                 await position_tx.asave()
                 logging.debug(f"position tx saved id #{position_tx.id}")
             else:
-                logging.debug(f"position tx exists id #{position_tx.id}")
+                logging.debug(f"position tx exists id #{position_tx.id}")            
 
         async def save_blacklist(data):
             for addr in data:
@@ -204,29 +203,31 @@ if __name__ == '__main__':
     # ))
 
     # execution
-    # receiver.put(ReportData(
-    #     type = ReportDataType.EXECUTION,
-    #     data = ExecutionAck(
-    #         lead_block=1,
-    #         block_number=2,
-    #         tx_hash='0xabc',
-    #         tx_status=1,
-    #         pair=Pair(
-    #             token='0xfoo', 
-    #             token_index=1,
-    #             address='0xbar',
-    #             reserve_eth=1,
-    #             reserve_token=1,
-    #         ),
-    #         amount_in=1,
-    #         amount_out=1000,
-    #         is_buy=True,
-    #     )
-    # ))
-
     receiver.put(ReportData(
-        type=ReportDataType.BLACKLIST_ADDED,
-        data=["0xfoo"]
+        type = ReportDataType.EXECUTION,
+        data = ExecutionAck(
+            lead_block=1,
+            block_number=2,
+            tx_hash='0xabc',
+            tx_status=0,
+            pair=Pair(
+                address='0x20efbb1273df765721127dfc94da1cd2942d594d',
+                token='0x3b4574cd0d7f784b252d06f99d0e7127d20e1484', 
+                token_index=0,
+                reserve_eth=1,
+                reserve_token=1,
+            ),
+            amount_in=1,
+            amount_out=1000,
+            is_buy=False,
+            signer='0xecb137C67c93eA50b8C259F8A8D08c0df18222d9',
+            bot='0xAfaD9BA8CFaa08fB68820795E8bb33f80d0463a5',
+        )
     ))
+
+    # receiver.put(ReportData(
+    #     type=ReportDataType.BLACKLIST_ADDED,
+    #     data=["0xfoo"]
+    # ))
 
     asyncio.run(reporter.run())
