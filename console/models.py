@@ -124,8 +124,10 @@ class Bot(models.Model):
 
     id = models.BigAutoField(primary_key=True)
     address = models.CharField(max_length=42, unique=True)
-    signer = models.CharField(max_length=42)
+    owner = models.CharField(max_length=42)
     deployed_at = models.DateTimeField(null=True)
+    number_used = models.IntegerField(null=True, default=0)
+    is_failed = models.BooleanField(null=True, default=False)
 
     created_at = models.DateTimeField(null=True,auto_now_add=True)
     updated_at = models.DateTimeField(null=True,auto_now=True)

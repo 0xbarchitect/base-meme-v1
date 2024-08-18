@@ -86,8 +86,8 @@ class BlacklistAdmin(FullPermissionModelAdmin):
     
 class BotAdmin(FullPermissionModelAdmin):
     list_filter = ['is_deleted']
-    list_display = ('id', 'address', 'signer', 'deployed_at', 'buttons')
-    fields = ('address', 'signer', 'deployed_at')
+    list_display = ('id', 'address', 'owner', 'deployed_at', 'number_used', 'is_failed', 'buttons')
+    fields = ('address', 'owner', 'deployed_at', 'number_used', 'is_failed')
     
     @admin.display(description='Actions')
     def buttons(self, obj):

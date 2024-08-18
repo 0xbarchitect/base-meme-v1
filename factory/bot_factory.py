@@ -1,6 +1,9 @@
+import asyncio
+import aioprocessing
 import os
 import logging
 from decimal import Decimal
+from datetime import datetime
 import time
 
 from web3 import Web3
@@ -10,16 +13,26 @@ import sys # for testing
 sys.path.append('..')
 
 from library import Singleton
-from data import W3Account
+from data import W3Account, BotCreationOrder, Bot
 from helpers import timer_decorator, load_abi
+
+import django
+from django.utils.timezone import make_aware
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "admin.settings")
+django.setup()
+
+import console.models
 
 GAS_LIMIT = 200*10**3
 TX_SUCCESS_STATUS = 1
 
 class BotFactory(metaclass=Singleton):
     @timer_decorator
-    def __init__(self, http_url, manager_key, bot_factory, bot_factory_abi, bot_implementation, router, pair_factory, weth) -> None:
-        self.http_url = http_url
+    def __init__(self, http_url, order_broker, result_broker, manager_key, bot_factory, bot_factory_abi, bot_implementation, router, 
+                 pair_factory, weth) -> None:
+        self.order_broker = order_broker
+        self.result_broker = result_broker
+
         self.w3 = Web3(Web3.HTTPProvider(http_url))
         if self.w3.is_connected() == True:
             logging.info(f"FACTORY web3 provider {http_url} connected")
@@ -59,11 +72,45 @@ class BotFactory(metaclass=Singleton):
             if tx_receipt['status'] == TX_SUCCESS_STATUS:
                 bot_created_logs = self.bot_factory.events.BotCreated().process_receipt(tx_receipt)
                 logging.info(f"FACTORY successfully create bot with owner {owner} at {bot_created_logs[0]['args']['bot']}")
+
+                return Bot(
+                    address=Web3.to_checksum_address(bot_created_logs[0]['args']['bot']),
+                    owner=Web3.to_checksum_address(bot_created_logs[0]['args']['owner']),
+                    deployed_at=int(time.time()),
+                    number_used=0,
+                    is_failed=False
+                )
             else:
                 logging.error(f"FACTORY create bot with owner {owner} failed {tx_receipt}")
 
         except Exception as e:
-            logging.error(f"FACTORY create bot with owner {owner} error {e}")
+            logging.error(f"FACTORY create bot with owner {owner} error:: {e}")
+
+    async def run(self):
+        while True:
+            order = await self.order_broker.coro_get()
+
+            if order is not None and isinstance(order, BotCreationOrder):
+                logging.info(f"FACTORY receive order {order}")
+                bot = self.create_bot(order.owner)
+                if bot is not None and isinstance(bot, Bot):
+                    # save to DB
+                    obj = console.models.Bot(
+                        address=bot.address.lower(),
+                        owner=bot.owner.lower(),
+                        deployed_at=make_aware(datetime.now()),
+                        number_used=0,
+                        is_failed=False,
+                    )
+                    await obj.asave()
+                    logging.info(f"FACTORY save bot to DB #{obj.id}")
+
+                    # send result via broker
+                    self.result_broker.put(bot)
+                else:
+                    logging.error(f"FACTORY create bot for owner {order.owner} failed")
+            else:
+                logging.error(f"FACTORY invalid order {order}")
 
 if __name__=="__main__":
     from dotenv import load_dotenv
@@ -72,8 +119,13 @@ if __name__=="__main__":
 
     BOT_FACTORY_ABI = load_abi(f"{os.path.dirname(__file__)}/../contracts/abis/BotFactory.abi.json")
 
+    order_broker = aioprocessing.AioQueue()
+    result_broker = aioprocessing.AioQueue()
+
     factory = BotFactory(
         http_url=os.environ.get('HTTPS_URL'),
+        order_broker=order_broker,
+        result_broker=result_broker,
         manager_key=os.environ.get('MANAGER_KEY'),
         bot_factory=os.environ.get('BOT_FACTORY'),
         bot_factory_abi=BOT_FACTORY_ABI,
@@ -83,4 +135,15 @@ if __name__=="__main__":
         weth=os.environ.get('WETH_ADDRESS'),
     )
 
-    factory.create_bot("0xe980767788694BFbD5934a51E508c1987bD29cD4")
+    order_broker.put(BotCreationOrder(owner='0xecb137C67c93eA50b8C259F8A8D08c0df18222d9'))
+
+    async def handle_result():
+        while True:
+            result = await result_broker.coro_get()
+            if result is not None:
+                logging.info(f"Bot creation result {result}")
+
+    async def main_loop():
+        await asyncio.gather(factory.run(),handle_result())
+
+    asyncio.run(main_loop())

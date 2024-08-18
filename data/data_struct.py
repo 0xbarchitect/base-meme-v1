@@ -168,3 +168,24 @@ class InspectionResult:
         CreatorCallContract {self.is_creator_call_contract} NumberTxMM {self.number_tx_mm}
         SimulationResult {self.simulation_result}
         """
+    
+class Bot:
+    def __init__(self, address, owner, deployed_at, number_used, is_failed) -> None:
+        self.address = address
+        self.owner = owner
+        self.deployed_at = deployed_at
+        self.number_used = number_used
+        self.is_failed = is_failed
+
+    def __str__(self) -> str:
+        return f"""
+        Bot {self.address} Owner {self.owner} DeployedAt {self.deployed_at}
+        NumberUsed {self.number_used} IsFailed {self.is_failed}
+        """
+
+class BotCreationOrder:
+    def __init__(self, owner) -> None:
+        self.owner = owner
+
+    def __str__(self) -> str:
+        return f"BotCreationOrder owner {self.owner}"
