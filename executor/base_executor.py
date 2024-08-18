@@ -43,7 +43,6 @@ class BaseExecutor(metaclass=Singleton):
         return W3Account(
             acct,
             private_key,
-            self.w3.eth.get_transaction_count(acct.address),
         )
 
     def get_block_timestamp(self):

@@ -14,20 +14,40 @@ sys.path.append('..')
 from helpers import timer_decorator, load_abi
 from executor import BaseExecutor
 from data import ExecutionOrder, Pair, ExecutionAck, TxStatus
+from factory import BotFactory
 
 class BuySellExecutor(BaseExecutor):
     def __init__(self, http_url, treasury_key, executor_keys, order_receiver, report_sender, \
                 gas_limit, max_fee_per_gas, max_priority_fee_per_gas, deadline_delay, \
-                weth, router, router_abi, erc20_abi, pair_abi, bot = None, bot_abi = None) -> None:
+                weth, router, router_abi, erc20_abi, pair_abi, bot, bot_abi, \
+                manager_key, bot_factory, bot_factory_abi, bot_implementation, pair_factory,) -> None:
         super().__init__(http_url, treasury_key, executor_keys, order_receiver, report_sender, gas_limit, max_fee_per_gas, max_priority_fee_per_gas, deadline_delay)
         self.weth = weth
         self.router = self.w3.eth.contract(address=router, abi=router_abi)
         self.erc20_abi = erc20_abi
         self.pair_abi = pair_abi
 
-        self.bot = []
-        if len(bot)>0 and bot_abi is not None:
-            self.bot = [self.w3.eth.contract(address=Web3.to_checksum_address(bot_address), abi=bot_abi) for bot_address in bot]
+        # TODO
+        self.bot_order_broker = aioprocessing.AioQueue()
+        self.bot_result_broker = aioprocessing.AioQueue()
+        self.bot_factory = BotFactory(
+            http_url=http_url,
+            order_broker=self.bot_order_broker,
+            result_broker=self.bot_result_broker,
+            manager_key=manager_key,
+            bot_factory=bot_factory,
+            bot_factory_abi=bot_factory_abi,
+            bot_implementation=bot_implementation,
+            router=router,
+            pair_factory=pair_factory,
+            weth=weth,
+        )
+        # self.bot = []
+        # if len(bot)>0 and bot_abi is not None:
+        #     self.bot = [self.w3.eth.contract(address=Web3.to_checksum_address(bot_address), abi=bot_abi) for bot_address in bot]
+        for acct in self.accounts:
+            pass
+            
         
         logging.info(f"EXECUTOR bots {self.bot}")
 

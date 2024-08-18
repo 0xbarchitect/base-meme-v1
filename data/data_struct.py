@@ -97,10 +97,9 @@ class ReportData:
         """
 
 class W3Account:
-    def __init__(self, w3_account, private_key, nonce) -> None:
+    def __init__(self, w3_account, private_key, bot=None) -> None:
         self.w3_account = w3_account
         self.private_key = private_key
-        self.nonce = nonce
 
 class SimulationResult:
     def __init__(self, pair, amount_in, amount_out, slippage, amount_token=0) -> None:
