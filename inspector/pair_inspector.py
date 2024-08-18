@@ -75,7 +75,8 @@ class PairInspector(metaclass=Singleton):
         r=requests.get(f"https://api.basescan.org/api?module=contract&action=getsourcecode&address={pair.token}&apikey={self.api_key}")
         if r.status_code==STATUS_CODE_SUCCESS:
             res=r.json()
-            if int(res['status'])==1 and len(res['result'][0].get('Library',''))==0:
+            if int(res['status'])==1 and len(res['result'][0].get('SourceCode',''))>0 \
+                and len(res['result'][0].get('ContractName'))>0 and len(res['result'][0].get('Library',''))==0:
                 return True
                 
             
@@ -207,14 +208,14 @@ if __name__=="__main__":
     )
 
     pair = Pair(
-        address="0x137eb40b169a30367fa352f1a5f3069a77c9a3f0",
-        token="0x1b0db1b116967ec132830e47b3fa8439a50ee417",
-        token_index=1,
+        address="0x2263347d6a75b08bffd3fb89db1d97154ad97b0e",
+        token="0xca048fe5d039231aaee90ba8c0d07c609b556b52",
+        token_index=0,
         reserve_eth=3,
         reserve_token=0,
         created_at=0,
         inspect_attempts=1,
-        creator="0x9b5cd354a9f370241bcd56a6c6c7bba4d8e263e1",
+        creator="0xe98697686d0a89fabe4e78a460a2f3fc80a9e10d",
         contract_verified=False,
         number_tx_mm=0,
         last_inspected_block=0,
