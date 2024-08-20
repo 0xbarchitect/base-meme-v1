@@ -18,41 +18,45 @@ from data import ExecutionOrder, Pair, ExecutionAck, TxStatus, BotCreationOrder,
 from factory import BotFactory
 
 BOT_MAX_NUMBER_USED=int(os.environ.get('BOT_MAX_NUMBER_USED'))
+EXECUTION_GAS_LIMIT=int(os.environ.get('EXECUTION_GAS_LIMIT'))
 
 class BuySellExecutor(BaseExecutor):
     def __init__(self, http_url, treasury_key, executor_keys, order_receiver, report_sender, \
                 gas_limit, max_fee_per_gas, max_priority_fee_per_gas, deadline_delay, \
                 weth, router, router_abi, erc20_abi, pair_abi, bot, bot_abi, \
-                manager_key, bot_factory, bot_factory_abi, bot_implementation, pair_factory,) -> None:
+                manager_key, bot_factory, bot_factory_abi, bot_implementation, pair_factory, bot_db=True) -> None:
         super().__init__(http_url, treasury_key, executor_keys, order_receiver, report_sender, gas_limit, max_fee_per_gas, max_priority_fee_per_gas, deadline_delay)
         self.weth = weth
         self.router = self.w3.eth.contract(address=router, abi=router_abi)
         self.erc20_abi = erc20_abi
         self.pair_abi = pair_abi
 
-        # bot factoty initialize
+        # bot factory initialize
+        self.bot_db = bot_db
+        self.bot_abi = bot_abi
         self.bot_order_broker = aioprocessing.AioQueue()
         self.bot_result_broker = aioprocessing.AioQueue()
-        self.bot_factory = BotFactory(
-            http_url=http_url,
-            order_broker=self.bot_order_broker,
-            result_broker=self.bot_result_broker,
-            manager_key=manager_key,
-            bot_factory=bot_factory,
-            bot_factory_abi=bot_factory_abi,
-            bot_implementation=bot_implementation,
-            router=router,
-            pair_factory=pair_factory,
-            weth=weth,
-        )
-        
-        self.bot_abi = bot_abi
-        for acct in self.accounts:
-            self.bot_order_broker.put(BotCreationOrder(owner=acct.w3_account.address))
+
+        if self.bot_db:
+            self.bot_factory = BotFactory(
+                http_url=http_url,
+                order_broker=self.bot_order_broker,
+                result_broker=self.bot_result_broker,
+                manager_key=manager_key,
+                bot_factory=bot_factory,
+                bot_factory_abi=bot_factory_abi,
+                bot_implementation=bot_implementation,
+                router=router,
+                pair_factory=pair_factory,
+                weth=weth,
+            )
+    
+            for acct in self.accounts:
+                self.bot_order_broker.put(BotCreationOrder(owner=acct.w3_account.address))
             
 
     @timer_decorator
-    def execute(self, idx, lead_block, is_buy, pair, amount_in, amount_out_min, deadline):
+    def execute(self, idx, lead_block, is_buy, pair, amount_in, amount_out_min, deadline, bot=None):
         def prepare_tx_bot(signer, bot, nonce):
             tx = None            
             if is_buy:
@@ -73,7 +77,10 @@ class BuySellExecutor(BaseExecutor):
         
         signer = self.accounts[idx].w3_account.address
         priv_key = self.accounts[idx].private_key
-        bot = self.w3.eth.contract(address=Web3.to_checksum_address(self.accounts[idx].bot.address),abi=self.bot_abi)
+        if bot is None:
+            bot = self.w3.eth.contract(address=Web3.to_checksum_address(self.accounts[idx].bot.address),abi=self.bot_abi)
+        else:
+            bot = self.w3.eth.contract(address=Web3.to_checksum_address(bot),abi=self.bot_abi)
 
         try:
             logging.info(f"EXECUTOR Signer {signer} AmountIn {amount_in} AmountOutMin {amount_out_min} Deadline {deadline} IsBuy {is_buy}")
@@ -144,19 +151,20 @@ class BuySellExecutor(BaseExecutor):
             self.report_sender.put(ack)
 
         # update bot status
-        self.bot_factory.order_broker.put(BotUpdateOrder(self.accounts[idx].bot,ack))
-        if ack.is_buy:
-            self.accounts[idx].bot.is_holding=True
-        else:
-            self.accounts[idx].bot.is_holding=False
-            self.accounts[idx].bot.number_used=self.accounts[idx].bot.number_used+1
-            if ack.tx_status != constants.TX_SUCCESS_STATUS:
-                self.accounts[idx].bot.is_failed=True
+        if self.bot_db:
+            self.bot_factory.order_broker.put(BotUpdateOrder(self.accounts[idx].bot,ack))
+            if ack.is_buy:
+                self.accounts[idx].bot.is_holding=True
+            else:
+                self.accounts[idx].bot.is_holding=False
+                self.accounts[idx].bot.number_used=self.accounts[idx].bot.number_used+1
+                if ack.tx_status != constants.TX_SUCCESS_STATUS:
+                    self.accounts[idx].bot.is_failed=True
 
-            if self.accounts[idx].bot.number_used>=BOT_MAX_NUMBER_USED or self.accounts[idx].bot.is_failed:
-                logging.warning(f"EXECUTOR bot {self.accounts[idx].bot.address} of account {signer} reached max usage {BOT_MAX_NUMBER_USED} or failure, replace it with new created bot")
-                self.accounts[idx].bot = None
-                self.bot_factory.order_broker.put(BotCreationOrder(self.accounts[idx].w3_account.address))
+                if self.accounts[idx].bot.number_used>=BOT_MAX_NUMBER_USED or self.accounts[idx].bot.is_failed:
+                    logging.warning(f"EXECUTOR bot {self.accounts[idx].bot.address} of account {signer} reached max usage {BOT_MAX_NUMBER_USED} or failure, replace it with new created bot")
+                    self.accounts[idx].bot = None
+                    self.bot_factory.order_broker.put(BotCreationOrder(self.accounts[idx].w3_account.address))
 
     async def handle_bot_result(self):
         while True:
@@ -211,6 +219,7 @@ class BuySellExecutor(BaseExecutor):
                             execution_data.amount_in,
                             execution_data.amount_out_min, 
                             deadline,
+                            execution_data.bot,
                         )
                     else:
                         logging.error(f"EXECUTOR not found signer for order {execution_data}")
@@ -218,7 +227,10 @@ class BuySellExecutor(BaseExecutor):
                 logging.warning(f"EXECUTOR invalid order {execution_data}")
 
     async def run(self):
-        await asyncio.gather(self.handle_execution_order(), self.bot_factory.run(), self.handle_bot_result())
+        if self.bot_db:
+            await asyncio.gather(self.handle_execution_order(), self.bot_factory.run(), self.handle_bot_result())
+        else:
+            await self.handle_execution_order()
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
@@ -241,7 +253,7 @@ if __name__ == "__main__":
         executor_keys=os.environ.get('EXECUTION_KEYS').split(','),
         order_receiver=order_receiver,
         report_sender=report_sender,
-        gas_limit=250*10**3,
+        gas_limit=EXECUTION_GAS_LIMIT,
         max_fee_per_gas=0.01*10**9,
         max_priority_fee_per_gas=25*10**9,
         deadline_delay=30,
@@ -257,10 +269,11 @@ if __name__ == "__main__":
         bot_factory_abi=BOT_FACTORY_ABI,
         bot_implementation=os.environ.get('BOT_IMPLEMENTATION'),
         pair_factory=os.environ.get('FACTORY_ADDRESS'),
+        bot_db=False,
     )
 
     async def simulate_order():
-        await asyncio.sleep(5) # waiting for bot is fully initialized
+        await asyncio.sleep(1) # waiting for bot is fully initialized
 
         # BUY
         # order_receiver.put(ExecutionOrder(
@@ -280,18 +293,18 @@ if __name__ == "__main__":
             block_number=0,
             block_timestamp=0,
             pair=Pair(
-                address='0x6bc274fcadfc651d74fa53a74f7f83dde15e0d09',
-                token='0x054caee1f9528cc546365fb4d19dde5007ede351',
+                address='0x7a2ae7d13f84e650535165854ea3f5532614783a',
+                token='0xa59a245f6761757adb15e77e381a8f1aa3a5343e',
                 token_index=0,
             ),
-            signer='0xecb137C67c93eA50b8C259F8A8D08c0df18222d9',
+            signer='0xdbac2fc53e7e2a80c9e713778e2f7fdd10f47dda',
+            bot='0x3063c2fad90df4a9a1632f467127c4b08b1490c7',
             amount_in=0,
             amount_out_min=0,
-            is_buy=False,    
+            is_buy=False,
             ))
 
     async def main_loop():
         await asyncio.gather(executor.run(), simulate_order())
     
-    #asyncio.run(executor.run())
     asyncio.run(main_loop())
