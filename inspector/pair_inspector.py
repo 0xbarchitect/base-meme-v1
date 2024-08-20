@@ -77,10 +77,9 @@ class PairInspector(metaclass=Singleton):
         if r.status_code==STATUS_CODE_SUCCESS:
             res=r.json()
             if int(res['status'])==1 and len(res['result'][0].get('Library',''))==0:
-                if CONTRACT_VERIFIED_REQUIRED==1 and len(res['result'][0].get('SourceCode',''))>0 and len(res['result'][0].get('ContractName'))>0:
-                    return True
-                else:
-                    return True
+                if CONTRACT_VERIFIED_REQUIRED==1:
+                    return True if len(res['result'][0].get('SourceCode',''))>0 and len(res['result'][0].get('ContractName'))>0 else False
+                return True
                 
         return False
                 
@@ -213,8 +212,8 @@ if __name__=="__main__":
     )
 
     pair = Pair(
-        address="0x2263347d6a75b08bffd3fb89db1d97154ad97b0e",
-        token="0xca048fe5d039231aaee90ba8c0d07c609b556b52",
+        address="0xea149a467f9c7164c312f688f3ca66109d7df978",
+        token="0xabe1289397406fa97c593d3f5bc24497f3f4d793",
         token_index=0,
         reserve_eth=3,
         reserve_token=0,
