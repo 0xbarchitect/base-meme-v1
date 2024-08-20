@@ -151,11 +151,16 @@ class Reporter(metaclass=Singleton):
             for addr in data:
                 blacklist = await BlackList.objects.filter(address=addr.lower()).afirst()
                 if blacklist is None:
-                    blacklist = BlackList(address=addr.lower())
+                    blacklist = BlackList(
+                        address=addr.lower(),
+                        frozen_at=make_aware(datetime.now()),
+                        )
                     await blacklist.asave()
-                    logging.info(f"REPORTER save {addr} to blacklist DB with id #{blacklist.id}")
+                    logging.info(f"REPORTER create blacklist id #{blacklist.id} with address {addr} at {datetime.now()}")
                 else:
-                    logging.info(f"REPORTER blacklist {addr} exists")
+                    logging.info(f"REPORTER blacklist {addr} exists, update frozen time {datetime.now()}")
+                    blacklist.frozen_at=make_aware(datetime.now())
+                    await blacklist.asave()
 
         try:
             if report.type == ReportDataType.BLOCK:
