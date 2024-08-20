@@ -110,6 +110,7 @@ class BlackList(models.Model):
 
     id = models.BigAutoField(primary_key=True)
     address = models.CharField(max_length=42, unique=True, null=True)
+    frozen_at = models.DateTimeField(null=True)
 
     created_at = models.DateTimeField(null=True,auto_now_add=True)
     updated_at = models.DateTimeField(null=True,auto_now=True)

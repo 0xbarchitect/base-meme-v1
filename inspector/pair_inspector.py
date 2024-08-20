@@ -41,6 +41,7 @@ SLIPPAGE_MAX_THRESHOLD = 100 # in basis points
 RESERVE_ETH_MIN_THRESHOLD=float(os.environ.get('RESERVE_ETH_MIN_THRESHOLD'))
 RESERVE_ETH_MAX_THRESHOLD=float(os.environ.get('RESERVE_ETH_MAX_THRESHOLD'))
 CONTRACT_VERIFIED_REQUIRED=int(os.environ.get('CONTRACT_VERIFIED_REQUIRED'))
+ROGUE_CREATOR_FROZEN_SECONDS=int(os.environ.get('ROGUE_CREATOR_FROZEN_SECONDS'))
 
 from enum import IntEnum
 
@@ -109,7 +110,7 @@ class PairInspector(metaclass=Singleton):
         return 0
         
     def is_malicious(self, pair) -> MaliciousPair:
-        blacklist = console.models.BlackList.objects.filter(address=pair.creator.lower()).filter(created_at__gte=make_aware(datetime.datetime.now() - datetime.timedelta(30))).first()
+        blacklist = console.models.BlackList.objects.filter(address=pair.creator.lower()).filter(frozen_at__gte=make_aware(datetime.datetime.now()-datetime.timedelta(seconds=ROGUE_CREATOR_FROZEN_SECONDS))).filter(created_at__gte=make_aware(datetime.datetime.now() - datetime.timedelta(days=90))).first()
         if blacklist is not None:
             logging.warning(f"INSPECTOR pair {pair.address} is blacklisted due to rogue creator")
             return MaliciousPair.CREATOR_BLACKLISTED
@@ -212,14 +213,14 @@ if __name__=="__main__":
     )
 
     pair = Pair(
-        address="0xea149a467f9c7164c312f688f3ca66109d7df978",
-        token="0xabe1289397406fa97c593d3f5bc24497f3f4d793",
+        address="0x93f108526ae7c00a8f241708d3e53a534ddb51e5",
+        token="0x19541834db85b54f365b972b2c7ce6810ad7302c",
         token_index=0,
         reserve_eth=3,
         reserve_token=0,
         created_at=0,
         inspect_attempts=1,
-        creator="0xe98697686d0a89fabe4e78a460a2f3fc80a9e10d",
+        creator="0xf64085402a2ef69d5b447076e065432f5afd7dcd",
         contract_verified=False,
         number_tx_mm=0,
         last_inspected_block=0,
