@@ -97,7 +97,7 @@ class ReportData:
         """
 
 class Bot:
-    def __init__(self, address, owner, deployed_at, number_used, is_failed, is_holding=False) -> None:
+    def __init__(self, address, owner, deployed_at=0, number_used=0, is_failed=False, is_holding=False) -> None:
         self.address = address
         self.owner = owner
         self.deployed_at = deployed_at

@@ -40,6 +40,7 @@ SLIPPAGE_MAX_THRESHOLD = 100 # in basis points
 
 RESERVE_ETH_MIN_THRESHOLD=float(os.environ.get('RESERVE_ETH_MIN_THRESHOLD'))
 RESERVE_ETH_MAX_THRESHOLD=float(os.environ.get('RESERVE_ETH_MAX_THRESHOLD'))
+CONTRACT_VERIFIED_REQUIRED=int(os.environ.get('CONTRACT_VERIFIED_REQUIRED'))
 
 from enum import IntEnum
 
@@ -75,9 +76,13 @@ class PairInspector(metaclass=Singleton):
         r=requests.get(f"https://api.basescan.org/api?module=contract&action=getsourcecode&address={pair.token}&apikey={self.api_key}")
         if r.status_code==STATUS_CODE_SUCCESS:
             res=r.json()
-            if int(res['status'])==1 and len(res['result'][0].get('SourceCode',''))>0 \
-                and len(res['result'][0].get('ContractName'))>0 and len(res['result'][0].get('Library',''))==0:
-                return True
+            if int(res['status'])==1 and len(res['result'][0].get('Library',''))==0:
+                if CONTRACT_VERIFIED_REQUIRED==1 and len(res['result'][0].get('SourceCode',''))>0 and len(res['result'][0].get('ContractName'))>0:
+                    return True
+                else:
+                    return True
+                
+        return False
                 
             
     @timer_decorator

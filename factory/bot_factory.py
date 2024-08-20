@@ -23,7 +23,7 @@ django.setup()
 
 import console.models
 
-GAS_LIMIT = 200*10**3
+GAS_LIMIT=int(os.environ.get('CREATE_BOT_GAS_LIMIT'))
 BOT_MAX_NUMBER_USED=int(os.environ.get('BOT_MAX_NUMBER_USED'))
 
 class BotFactory(metaclass=Singleton):

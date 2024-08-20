@@ -161,7 +161,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                         with glb_lock:
                             glb_liquidated = True
 
-                        logging.warning(f"MAIN liquidate {position}")
+                        logging.warning(f"MAIN close {position}")
                         execution_broker.put(ExecutionOrder(
                                     block_number=block_data.block_number,
                                     block_timestamp=block_data.block_timestamp,
