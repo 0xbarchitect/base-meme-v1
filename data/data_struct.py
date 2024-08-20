@@ -56,7 +56,7 @@ class ExecutionOrder:
         self.bot = bot
 
     def __str__(self) -> str:
-        return f"ExecutionOrder block #{self.block_number} pair {self.pair.address} amountIn {self.amount_in} amountOutMin {self.amount_out_min} signer {self.signer} bot {self.bot} isBuy {self.is_buy}"
+        return f"ExecutionOrder Block #{self.block_number} Pair {self.pair.address} AmountIn {self.amount_in} AmountOutMin {self.amount_out_min} Signer {self.signer} Bot {self.bot} isBuy {self.is_buy}"
     
 class ExecutionAck:
     def __init__(self, lead_block, block_number, tx_hash, tx_status, pair: Pair, amount_in, amount_out, is_buy, signer=None, bot=None) -> None:
@@ -73,7 +73,7 @@ class ExecutionAck:
 
     def __str__(self) -> str:
         return f"""
-        ExecutionAck lead #{self.lead_block} realized #{self.block_number} tx {self.tx_hash} status {self.tx_status}
+        ExecutionAck lead #{self.lead_block} realized #{self.block_number} Tx {self.tx_hash} STATUS {self.tx_status}
         Pair {self.pair.address} AmountIn {self.amount_in} AmountOut {self.amount_out} Signer {self.signer} Bot {self.bot} IsBuy {self.is_buy}
         """
 from enum import IntEnum
