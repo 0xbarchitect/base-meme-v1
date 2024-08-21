@@ -2,14 +2,13 @@ import os
 import logging
 from decimal import Decimal
 
-from library import Singleton
-
 from web3 import Web3
 from web3.middleware import geth_poa_middleware, construct_sign_and_send_raw_middleware
 
 import sys # for testing
 sys.path.append('..')
 
+from library import Singleton
 from data import W3Account
 
 ALLOWANCE_TOKEN_AMOUNT = 10**6
