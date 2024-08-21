@@ -12,8 +12,8 @@ from library import Singleton
 from helpers import constants, load_abi
 from factory import BotFactory
 
-NUMBER_EXECUTOR=3
-INITIAL_BALANCE=0.0008
+NUMBER_EXECUTOR=8
+INITIAL_BALANCE=0.0006
 TRANSFER_GAS_LIMIT=10**-7
 
 class Bootstrap(metaclass=Singleton):
@@ -71,7 +71,7 @@ class Bootstrap(metaclass=Singleton):
 
     def withdraw(self, private_keys, to):
         try:
-            for key in private_keys:
+            for key in private_keys.split(','):
                 acct=self.w3.eth.account.from_key(key)
                 self.w3.middleware_onion.add(construct_sign_and_send_raw_middleware(acct))
                 self.w3.eth.default_account = acct.address
@@ -116,13 +116,10 @@ if __name__ == '__main__':
     )
 
     #bootstrap.create_executor_and_fund(NUMBER_EXECUTOR)
+
     # bootstrap.fund_executor(['0x4209f8350A00A335ca057ccC61691655BbABd01A',
     #                          '0x3083Eb34dEE19e9374aAFC0F6ceE52AdD4ef1654',
     #                          '0xC451F31193B9994CaCA247E52A71dB38b1d09eD1'], INITIAL_BALANCE)
 
-    #bootstrap.create_bot('0x57b9C28AA6AD597B5759f5e1Be1ECC6B3ce7E6A3')
-    bootstrap.withdraw(['bb28d1397fc5a4d3cb76e4c5297b4a5bf08cc1db889bf7441d8ffc0a8ce2b3be',
-                        '3e10ffc4211c605a196ac41d421fb1a93a030f1d036792e950ab77f5942d5351',
-                        'ab0d70036ee5934ce17c41d796f8b30bb08c730b399ad3aa0ee694f1263f1b1b'],
-                       '0xA0e4075e79aE82E1071B1636b8b9129877D94BfD')
+    #bootstrap.withdraw('bb28d1397fc5a4d3cb76e4c5297b4a5bf08cc1db889bf7441d8ffc0a8ce2b3be,3e10ffc4211c605a196ac41d421fb1a93a030f1d036792e950ab77f5942d5351,ab0d70036ee5934ce17c41d796f8b30bb08c730b399ad3aa0ee694f1263f1b1b','0xA0e4075e79aE82E1071B1636b8b9129877D94BfD')
 
