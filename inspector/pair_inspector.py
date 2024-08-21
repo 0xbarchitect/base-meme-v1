@@ -46,7 +46,8 @@ ROGUE_CREATOR_FROZEN_SECONDS=int(os.environ.get('ROGUE_CREATOR_FROZEN_SECONDS'))
 from enum import IntEnum
 
 class PairInspector(metaclass=Singleton):
-    def __init__(self,http_url,api_key,
+    def __init__(self,http_url,
+                 api_keys,
                  signer, 
                  router, 
                  weth,
@@ -57,7 +58,7 @@ class PairInspector(metaclass=Singleton):
         
         self.http_url = http_url
         self.w3 = Web3(Web3.HTTPProvider(http_url))
-        self.api_key = api_key
+        self.api_keys = api_keys.split(',')
 
         self.signer = signer
         self.router = router
@@ -67,6 +68,7 @@ class PairInspector(metaclass=Singleton):
         self.pair_abi = pair_abi
         self.weth_abi = weth_abi
         self.bot_abi = bot_abi
+        self.counter = 0
 
     @timer_decorator
     def is_contract_verified(self, pair: Pair) -> False:
@@ -74,7 +76,8 @@ class PairInspector(metaclass=Singleton):
             return True
 
         #r=requests.get(f"https://api.basescan.org/api?module=contract&action=getabi&address={pair.token}&apikey={self.api_key}")
-        r=requests.get(f"https://api.basescan.org/api?module=contract&action=getsourcecode&address={pair.token}&apikey={self.api_key}")
+        
+        r=requests.get(f"https://api.basescan.org/api?module=contract&action=getsourcecode&address={pair.token}&apikey={self.select_api_key()}")
         if r.status_code==STATUS_CODE_SUCCESS:
             res=r.json()
             if int(res['status'])==1 and len(res['result'][0].get('Library',''))==0:
@@ -83,11 +86,10 @@ class PairInspector(metaclass=Singleton):
                 return True
                 
         return False
-                
-            
+    
     @timer_decorator
     def is_creator_call_contract(self, pair, from_block, to_block) -> 0:
-        r=requests.get(f"https://api.basescan.org/api?module=account&action=txlist&address={pair.token}&startblock={from_block}&endblock={to_block}&page=1&offset={PAGE_SIZE}&sort=asc&apikey={self.api_key}")
+        r=requests.get(f"https://api.basescan.org/api?module=account&action=txlist&address={pair.token}&startblock={from_block}&endblock={to_block}&page=1&offset={PAGE_SIZE}&sort=asc&apikey={self.select_api_key()}")
         if r.status_code==STATUS_CODE_SUCCESS:
             res=r.json()
             if len(res['result'])>0:
@@ -95,6 +97,10 @@ class PairInspector(metaclass=Singleton):
                 return len(txs)
             
         return 0
+    
+    def select_api_key(self):
+        self.counter+=1
+        return self.api_keys[self.counter % len(self.api_keys)]
             
     @timer_decorator
     def number_tx_mm(self, pair, from_block, to_block) -> 0:
@@ -125,7 +131,7 @@ class PairInspector(metaclass=Singleton):
     
     @timer_decorator
     def inspect_pair(self, pair: Pair, block_number, is_initial=False) -> InspectionResult:
-        from_block=pair.last_inspected_block+1 if pair.last_inspected_block>0 else block_number
+        from_block=pair.last_inspected_block if pair.last_inspected_block>0 else block_number
 
         result = InspectionResult(
             pair=pair,
@@ -202,7 +208,7 @@ if __name__=="__main__":
 
     inspector = PairInspector(
         http_url=os.environ.get('HTTPS_URL'),
-        api_key=os.environ.get('BASESCAN_API_KEY'),
+        api_keys=os.environ.get('BASESCAN_API_KEY'),
         signer=Web3.to_checksum_address(os.environ.get('EXECUTION_ADDRESSES').split(',')[0]),
         router=Web3.to_checksum_address(os.environ.get('ROUTER_ADDRESS')),
         weth=Web3.to_checksum_address(os.environ.get('WETH_ADDRESS')),

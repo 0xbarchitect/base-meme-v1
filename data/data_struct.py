@@ -185,11 +185,12 @@ class InspectionResult:
         """
 
 class BotCreationOrder:
-    def __init__(self, owner) -> None:
+    def __init__(self, owner, retry_times=0) -> None:
         self.owner = owner
+        self.retry_times = retry_times
 
     def __str__(self) -> str:
-        return f"BotCreationOrder owner {self.owner}"
+        return f"BotCreationOrder owner {self.owner} retryTimes {self.retry_times}"
     
 class BotUpdateOrder:
     def __init__(self, bot:Bot, execution_ack: ExecutionAck) -> None:

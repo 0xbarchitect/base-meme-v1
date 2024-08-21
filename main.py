@@ -21,7 +21,7 @@ from watcher import BlockWatcher
 from inspector import Simulator, PairInspector
 from executor import BuySellExecutor
 from reporter import Reporter
-from helpers import load_abi, timer_decorator, calculate_price, calculate_next_block_base_fee
+from helpers import load_abi, timer_decorator, calculate_price, calculate_next_block_base_fee, constants
 
 from data import ExecutionOrder, SimulationResult, ExecutionAck, Position, TxStatus, \
                     ReportData, ReportDataType, BlockData, Pair, MaliciousPair, InspectionResult
@@ -45,7 +45,7 @@ BOT_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/SnipeBot.abi.jso
 BOT_FACTORY_ABI = load_abi(f"{os.path.dirname(__file__)}/contracts/abis/BotFactory.abi.json")
 
 # simulation conditions
-WATCHING_ONLY=int(os.environ.get('WATCHING_ONLY', '0'))
+RUN_MODE=int(os.environ.get('RUN_MODE', '0'))
 
 RESERVE_ETH_MIN_THRESHOLD=float(os.environ.get('RESERVE_ETH_MIN_THRESHOLD'))
 RESERVE_ETH_MAX_THRESHOLD=float(os.environ.get('RESERVE_ETH_MAX_THRESHOLD'))
@@ -135,7 +135,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
         # hardstop based on pnl
         logging.info(f"[{glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}] PnL {glb_daily_pnl[1]}")
 
-        if WATCHING_ONLY==1:
+        if RUN_MODE==constants.WATCHING_ONLY_MODE:
             logging.info(f"I'm happy watching =))...")
             continue
 
@@ -213,8 +213,10 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                             if result.pair.address == pair.address:
                                 with glb_lock:
                                     pair.inspect_attempts += 1
-                                    pair.last_inspected_block = block_data.block_number
-                                    pair.number_tx_mm += result.number_tx_mm
+                                    pair.number_tx_mm = result.number_tx_mm
+                                    # TODO: do not update last_inspected_block in order to reverify multiple times
+                                    #pair.last_inspected_block = block_data.block_number
+                                    
                                 logging.info(f"MAIN update upon inspect attempts {pair}")
 
                             if pair.inspect_attempts >= MAX_INSPECT_ATTEMPTS:
@@ -272,7 +274,7 @@ def inspect(pairs, block_number, is_initial=False) -> List[InspectionResult]:
 
     inspector = PairInspector(
         http_url=os.environ.get('HTTPS_URL'),
-        api_key=os.environ.get('BASESCAN_API_KEY'),
+        api_keys=os.environ.get('BASESCAN_API_KEYS'),
         signer=Web3.to_checksum_address(os.environ.get('EXECUTION_ADDRESSES').split(',')[0]),
         router=Web3.to_checksum_address(os.environ.get('ROUTER_ADDRESS')),
         weth=Web3.to_checksum_address(os.environ.get('WETH_ADDRESS')),

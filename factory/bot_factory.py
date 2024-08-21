@@ -25,6 +25,7 @@ import console.models
 
 GAS_LIMIT=int(os.environ.get('CREATE_BOT_GAS_LIMIT'))
 BOT_MAX_NUMBER_USED=int(os.environ.get('BOT_MAX_NUMBER_USED'))
+RETRY_SLEEP_SECONDS=10
 
 class BotFactory(metaclass=Singleton):
     @timer_decorator
@@ -32,6 +33,7 @@ class BotFactory(metaclass=Singleton):
                  pair_factory, weth) -> None:
         self.order_broker = order_broker
         self.result_broker = result_broker
+        self.retry_queue = aioprocessing.AioQueue()
 
         self.w3 = Web3(Web3.HTTPProvider(http_url))
         if self.w3.is_connected() == True:
@@ -121,7 +123,9 @@ class BotFactory(metaclass=Singleton):
                         # send result via broker
                         self.result_broker.put(bot)
                     else:
-                        logging.error(f"FACTORY create bot for owner {order.owner} failed")
+                        logging.error(f"FACTORY create bot for owner {order.owner} failed, retry...")
+                        await asyncio.sleep(RETRY_SLEEP_SECONDS)
+                        self.order_broker.put(BotCreationOrder(owner=order.owner, retry_times=order.retry_times+1))
             elif order is not None and isinstance(order, BotUpdateOrder):
                 logging.info(f"FACTORY receive order update {order.bot} status")
 
