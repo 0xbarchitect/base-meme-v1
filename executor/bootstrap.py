@@ -14,7 +14,8 @@ from factory import BotFactory
 
 NUMBER_EXECUTOR=8
 INITIAL_BALANCE=0.0006
-TRANSFER_GAS_LIMIT=10**-7
+GAS_PRICE_GWEI=0.02
+TRANSFER_GAS_LIMIT=21000
 
 class Bootstrap(metaclass=Singleton):
     def __init__(self, http_url, manager_key, bot_factory, bot_factory_abi, bot_implementation,
@@ -45,8 +46,8 @@ class Bootstrap(metaclass=Singleton):
         accts=[self.w3.eth.account.create() for i in range(number)]
         addresses=[acct.address for acct in accts]
         keys=[acct.key.hex()[2:] for acct in accts]
-        print(f"ADDRESSES: {','.join(addresses)}")
-        print(f"KEYS: {','.join(keys)}")
+        print(f"EXECUTION_ADDRESSES=\"{','.join(addresses)}\"")
+        print(f"EXECUTION_KEYS=\"{','.join(keys)}\"")
 
         self.fund_executor(addresses, INITIAL_BALANCE)
 
@@ -77,15 +78,15 @@ class Bootstrap(metaclass=Singleton):
                 self.w3.eth.default_account = acct.address
 
                 logging.info(f"BALANCE of {acct.address}: {Web3.from_wei(self.w3.eth.get_balance(acct.address), 'ether')}")
-                value=Web3.from_wei(self.w3.eth.get_balance(acct.address), 'ether')-2*Decimal(TRANSFER_GAS_LIMIT)
-                print(f"Widthdraw amount: {value}")
+                value=Web3.from_wei(self.w3.eth.get_balance(acct.address), 'ether')-2*Decimal(TRANSFER_GAS_LIMIT)*Decimal(GAS_PRICE_GWEI*10**-9)
+                logging.info(f"Widthdraw amount: {value}")
 
                 tx_hash = self.w3.eth.send_transaction({
                     "from": acct.address,
                     "to": Web3.to_checksum_address(to),
                     "value": Web3.to_wei(value, 'ether'),
                 })
-                print(f"Tx hash {Web3.to_hex(tx_hash)}")
+                logging.debug(f"Tx hash {Web3.to_hex(tx_hash)}")
 
                 tx_receipt=self.w3.eth.wait_for_transaction_receipt(tx_hash)
                 if tx_receipt['status']==constants.TX_SUCCESS_STATUS:
@@ -95,7 +96,6 @@ class Bootstrap(metaclass=Singleton):
         except Exception as e:
             logging.error(f"BOOTSTRAP widthdraw error:: {e}")
         
-
 
 if __name__ == '__main__':
     from dotenv import load_dotenv
@@ -115,11 +115,16 @@ if __name__ == '__main__':
         weth=os.environ.get('WETH_ADDRESS'),
     )
 
+    # CREATE EXECUTORS
     #bootstrap.create_executor_and_fund(NUMBER_EXECUTOR)
+    #bootstrap.create_bot('0x5E442193545F0d2608380dd1822Ea5d0CA6f24F7')
 
+    # FUND EXECUTORS ON-DEMAND
     # bootstrap.fund_executor(['0x4209f8350A00A335ca057ccC61691655BbABd01A',
     #                          '0x3083Eb34dEE19e9374aAFC0F6ceE52AdD4ef1654',
     #                          '0xC451F31193B9994CaCA247E52A71dB38b1d09eD1'], INITIAL_BALANCE)
 
-    #bootstrap.withdraw('bb28d1397fc5a4d3cb76e4c5297b4a5bf08cc1db889bf7441d8ffc0a8ce2b3be,3e10ffc4211c605a196ac41d421fb1a93a030f1d036792e950ab77f5942d5351,ab0d70036ee5934ce17c41d796f8b30bb08c730b399ad3aa0ee694f1263f1b1b','0xA0e4075e79aE82E1071B1636b8b9129877D94BfD')
+    # WITHDRAWAL
+    withdraw_keys='a1c7ffb760ec956ca45459039adb516ac181aabe3e9f7f4ce02ee8f42e59ab42,8ac032d8a83a524f5073fc7d9ee3d7ac2f60dc924d7cf3cf78fe887fefa18f18,ce3d97d042d51d14ba5f2c6bec77f2d3bcfa587b64a6696fd84ffa1eae5a661e,cec251e3b4a4df5813f7610d1f7fd2d2ce81a11c015fe94e2ba3354663e69a5b,b5d57ec695ab006000a153395611d56b23eac39cf8b445bfe21a3d05e6bc2e85,b3079d96446d12708fe5bf2307d3b6899001ff62a9d7f6b786e78ddd9a91ab22'
+    bootstrap.withdraw(withdraw_keys,'0xA0e4075e79aE82E1071B1636b8b9129877D94BfD')
 
