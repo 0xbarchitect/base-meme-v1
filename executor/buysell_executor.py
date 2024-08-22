@@ -151,7 +151,7 @@ class BuySellExecutor(BaseExecutor):
             self.report_sender.put(ack)
 
         # update bot status
-        if self.bot_db:
+        if self.bot_db and self.accounts[idx].bot is not None:
             self.bot_factory.order_broker.put(BotUpdateOrder(self.accounts[idx].bot,ack))
             if ack.is_buy:
                 self.accounts[idx].bot.is_holding=True
