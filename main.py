@@ -201,20 +201,14 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                 logging.debug(f"MAIN watchlist simulation result length {len(results)}")
 
                 for result in results:
-                    if result.is_malicious == MaliciousPair.CREATOR_DUPLICATED:
-                        report_broker.put(ReportData(
-                            type=ReportDataType.BLACKLIST_ADDED,
-                            data=[result.pair.creator]
-                        ))
-                        logging.warning(f"MAIN add {result.pair.creator} to blacklist")
-
-                    elif result.simulation_result is not None:
+                    if result.simulation_result is not None:
                         for idx,pair in enumerate(glb_watchlist):
                             if result.pair.address == pair.address:
                                 with glb_lock:
                                     pair.inspect_attempts += 1
                                     pair.number_tx_mm = result.number_tx_mm
-                                    # TODO: do not update last_inspected_block in order to reverify multiple times
+                                    # TODO: last_inspected_block is not updated and stay as initial value created_block_number
+                                    # in order to re-verify multiple times to gain reliability
                                     #pair.last_inspected_block = block_data.block_number
                                     
                                 logging.info(f"MAIN update upon inspect attempts {pair}")
@@ -244,13 +238,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
 
             if len(glb_watchlist)<WATCHLIST_CAPACITY:
                 for result in results:
-                    if result.is_malicious == MaliciousPair.CREATOR_DUPLICATED:
-                        report_broker.put(ReportData(
-                            type=ReportDataType.BLACKLIST_ADDED,
-                            data=[result.pair.creator]
-                        ))
-                        logging.warning(f"MAIN add {result.pair.creator} to blacklist")
-                    elif result.simulation_result is not None:
+                    if result.simulation_result is not None:
                         if MAX_INSPECT_ATTEMPTS > 1:
                             with glb_lock:
                                 # append to watchlist

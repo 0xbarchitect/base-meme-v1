@@ -161,7 +161,7 @@ class TxStatus(IntEnum):
 class MaliciousPair(IntEnum):
     UNMALICIOUS=0
     CREATOR_BLACKLISTED=1
-    CREATOR_DUPLICATED=2 
+    CREATOR_RUGGED=2
 
 class InspectionResult:
     def __init__(self, pair: Pair, from_block, to_block, reserve_inrange=False, simulation_result=None, is_malicious=MaliciousPair.UNMALICIOUS, contract_verified=False, is_creator_call_contract=0, number_tx_mm=0) -> None:

@@ -20,6 +20,7 @@ from helpers.utils import load_contract_bin, encode_address, encode_uint, func_s
                             decode_address, decode_pair_reserves, decode_int, load_router_contract, \
                             load_abi, calculate_next_block_base_fee, calculate_balance_storage_index, rpad_int, \
                             calculate_allowance_storage_index
+from helpers import constants
 from data import Pair, MaliciousPair, InspectionResult, SimulationResult
 from inspector import Simulator
 
@@ -33,6 +34,7 @@ import console.models
 STATUS_CODE_SUCCESS=200
 PAGE_SIZE=100
 MM_TX_AMOUNT_THRESHOLD=0.001
+CREATOR_TX_HISTORY_PAGE_SIZE=500
 
 SIMULATION_AMOUNT=0.001
 SLIPPAGE_MIN_THRESHOLD = 30 # in basis points
@@ -42,6 +44,10 @@ RESERVE_ETH_MIN_THRESHOLD=float(os.environ.get('RESERVE_ETH_MIN_THRESHOLD'))
 RESERVE_ETH_MAX_THRESHOLD=float(os.environ.get('RESERVE_ETH_MAX_THRESHOLD'))
 CONTRACT_VERIFIED_REQUIRED=int(os.environ.get('CONTRACT_VERIFIED_REQUIRED'))
 ROGUE_CREATOR_FROZEN_SECONDS=int(os.environ.get('ROGUE_CREATOR_FROZEN_SECONDS'))
+
+HOLD_MAX_DURATION_SECONDS=int(os.environ.get('HOLD_MAX_DURATION_SECONDS'))
+MAX_INSPECT_ATTEMPTS=int(os.environ.get('MAX_INSPECT_ATTEMPTS'))
+INSPECT_INTERVAL_SECONDS=int(os.environ.get('INSPECT_INTERVAL_SECONDS'))
 
 from enum import IntEnum
 
@@ -74,8 +80,6 @@ class PairInspector(metaclass=Singleton):
     def is_contract_verified(self, pair: Pair) -> False:
         if pair.contract_verified:
             return True
-
-        #r=requests.get(f"https://api.basescan.org/api?module=contract&action=getabi&address={pair.token}&apikey={self.api_key}")
         
         r=requests.get(f"https://api.basescan.org/api?module=contract&action=getsourcecode&address={pair.token}&apikey={self.select_api_key()}")
         if r.status_code==STATUS_CODE_SUCCESS:
@@ -86,13 +90,13 @@ class PairInspector(metaclass=Singleton):
                 return True
                 
         return False
-    
+        
     @timer_decorator
     def is_creator_call_contract(self, pair, from_block, to_block) -> 0:
         r=requests.get(f"https://api.basescan.org/api?module=account&action=txlist&address={pair.token}&startblock={from_block}&endblock={to_block}&page=1&offset={PAGE_SIZE}&sort=asc&apikey={self.select_api_key()}")
         if r.status_code==STATUS_CODE_SUCCESS:
             res=r.json()
-            if len(res['result'])>0:
+            if int(res['status'])==1 and len(res['result'])>0:
                 txs = [tx for tx in res['result'] if tx['from'].lower()==pair.creator.lower() and tx['to'].lower()==pair.token.lower()]
                 return len(txs)
             
@@ -115,17 +119,36 @@ class PairInspector(metaclass=Singleton):
         
         return 0
         
-    def is_malicious(self, pair) -> MaliciousPair:
+    @timer_decorator
+    def is_malicious(self, pair, block_number, is_initial=False) -> MaliciousPair:
         blacklist = console.models.BlackList.objects.filter(address=pair.creator.lower()).filter(frozen_at__gte=make_aware(datetime.datetime.now()-datetime.timedelta(seconds=ROGUE_CREATOR_FROZEN_SECONDS))).filter(created_at__gte=make_aware(datetime.datetime.now() - datetime.timedelta(days=90))).first()
         if blacklist is not None:
             logging.warning(f"INSPECTOR pair {pair.address} is blacklisted due to rogue creator")
             return MaliciousPair.CREATOR_BLACKLISTED
-        
-        # TODO: consider rules of duplication creator
-        # duplicate_pool_creator = console.models.Pair.objects.filter(creator=pair.creator.lower()).filter(created_at__gte=make_aware(datetime.datetime.now() - datetime.timedelta(30))).exclude(address=pair.address.lower()).first()
-        # if duplicate_pool_creator is not None:
-        #     logging.warning(f"INSPECTOR malicious pair {pair.address} due to the same creator with other pair {duplicate_pool_creator.address}")
-        #     return MaliciousPair.CREATOR_DUPLICATED
+
+        # inspect add/remove liquidity within time window
+        if is_initial:
+            block_number_window = round(ROGUE_CREATOR_FROZEN_SECONDS/2)
+            r=requests.get(f"https://api.basescan.org/api?module=account&action=txlist&address={pair.creator.lower()}&startblock={block_number-block_number_window}&endblock={block_number-1}&page=1&offset={CREATOR_TX_HISTORY_PAGE_SIZE}&sort=desc&apikey={self.select_api_key()}")
+            if r.status_code==STATUS_CODE_SUCCESS:
+                res=r.json()
+                if int(res['status'])==1 and len(res['result'])>0:
+                    min_pair_lifetime=0
+                    end_block_number=0
+                    for tx in res['result']:
+                        if tx['from'].lower()==pair.creator.lower() and tx['to'].lower()==constants.UNI_V2_ROUTER_ADDRESS.lower():
+                            if tx['methodId'].lower()==constants.REMOVE_LIQUIDITY_METHOD_ID.lower():
+                                logging.debug(f"Remove liquidity at {tx['blockNumber']}")
+                                end_block_number=int(tx['blockNumber'])
+                            elif tx['methodId'].lower()==constants.ADD_LIQUIDITY_METHOD_ID.lower():
+                                logging.debug(f"Add liquidity at {tx['blockNumber']}")
+                                if min_pair_lifetime>end_block_number-int(tx['blockNumber']) or min_pair_lifetime==0:
+                                    min_pair_lifetime=end_block_number-int(tx['blockNumber'])
+                                    logging.debug(f"INSPECTOR Min pair lifetime updated {min_pair_lifetime}")
+
+                    if min_pair_lifetime>0 and min_pair_lifetime*2<(MAX_INSPECT_ATTEMPTS-1)*INSPECT_INTERVAL_SECONDS+HOLD_MAX_DURATION_SECONDS:
+                        logging.warning(f"INSPECTOR Creator {pair.creator} detected malicious caused by Min-pair-lifetime {min_pair_lifetime*2}s less than Expected-hold-time {(MAX_INSPECT_ATTEMPTS-1)*INSPECT_INTERVAL_SECONDS+HOLD_MAX_DURATION_SECONDS}s")
+                        return MaliciousPair.CREATOR_RUGGED
         
         return MaliciousPair.UNMALICIOUS
     
@@ -145,7 +168,7 @@ class PairInspector(metaclass=Singleton):
         if is_initial and not result.reserve_inrange:
             return result        
 
-        result.is_malicious=self.is_malicious(pair)
+        result.is_malicious=self.is_malicious(pair, block_number, is_initial)
         if result.is_malicious != MaliciousPair.UNMALICIOUS:
             return result
 
@@ -208,7 +231,7 @@ if __name__=="__main__":
 
     inspector = PairInspector(
         http_url=os.environ.get('HTTPS_URL'),
-        api_keys=os.environ.get('BASESCAN_API_KEY'),
+        api_keys=os.environ.get('BASESCAN_API_KEYS'),
         signer=Web3.to_checksum_address(os.environ.get('EXECUTION_ADDRESSES').split(',')[0]),
         router=Web3.to_checksum_address(os.environ.get('ROUTER_ADDRESS')),
         weth=Web3.to_checksum_address(os.environ.get('WETH_ADDRESS')),
@@ -219,17 +242,17 @@ if __name__=="__main__":
     )
 
     pair = Pair(
-        address="0x567221acf604ae053f8e56663f7b7f95687a24f7",
-        token="0x4a5d63979e99651d08dba74550356b8673e2f3af",
+        address="0x6ce5962f02db48e2146f9520d3ad5f76ff365ee9",
+        token="0xda07f7a71bef3f52ffd7f4898a41c9e98fa398ff",
         token_index=0,
         reserve_eth=3,
         reserve_token=0,
         created_at=0,
         inspect_attempts=1,
-        creator="0x2c10b71b20d4b424315bcf3aef56345be0a324b8",
+        creator="0xe2a5a1fc6cbd40828258965bc3dfcc3e035530fd",
         contract_verified=False,
         number_tx_mm=0,
-        last_inspected_block=18704326,
+        last_inspected_block=0, # is the created_block as well
     )
 
     #print("verified") if inspector.is_contract_verified(pair) else print(f"unverified")
@@ -237,5 +260,4 @@ if __name__=="__main__":
     # print(f"number mm_tx {inspector.number_tx_mm(pair, 18441096, 18441130)}")
     # print(f"is malicious {inspector.is_malicious(pair)}")
 
-    inspector.inspect_batch([pair], 18704359)
-
+    inspector.inspect_batch([pair], 18778499, is_initial=True)
