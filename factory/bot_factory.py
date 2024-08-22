@@ -87,62 +87,73 @@ class BotFactory(metaclass=Singleton):
         except Exception as e:
             logging.error(f"FACTORY create bot with owner {owner} error:: {e}")
 
+    async def handle_create_bot(self, order: BotCreationOrder):
+        try:
+            # query from DB
+            bot = await console.models.Bot.objects.filter(owner=order.owner.lower()).filter(number_used__lt=BOT_MAX_NUMBER_USED).filter(is_failed=False).afirst()
+            if bot is not None:
+                logging.info(f"FACTORY found available bot #{bot.id} from DB")
+
+                # send result via broker
+                self.result_broker.put(Bot(
+                    address=bot.address,
+                    owner=bot.owner,
+                    deployed_at=int(datetime.timestamp(bot.deployed_at)),
+                    number_used=bot.number_used,
+                    is_failed=bot.is_failed,
+                ))
+            else:
+                bot = self.create_bot(order.owner)
+                if bot is not None and isinstance(bot, Bot):
+                    # save to DB
+                    obj = console.models.Bot(
+                        address=bot.address.lower(),
+                        owner=bot.owner.lower(),
+                        deployed_at=make_aware(datetime.now()),
+                        number_used=0,
+                        is_failed=False,
+                    )
+                    await obj.asave()
+                    logging.info(f"FACTORY save bot to DB #{obj.id}")
+
+                    # send result via broker
+                    self.result_broker.put(bot)
+                else:
+                    logging.error(f"FACTORY create bot for owner {order.owner} failed, retry...")
+                    await asyncio.sleep(RETRY_SLEEP_SECONDS)
+                    self.order_broker.put(BotCreationOrder(owner=order.owner, retry_times=order.retry_times+1))
+        except Exception as e:
+            logging.error(f"FACTORY handle create-bot error {e}")
+
+    async def handle_update_bot(self, order: BotUpdateOrder):
+        try:
+            bot = await console.models.Bot.objects.filter(address=order.bot.address.lower()).afirst()
+            if bot is not None:
+                if order.execution_ack.is_buy:
+                    bot.is_holding=True
+                    await bot.asave()
+                else:
+                    bot.is_holding=False
+                    bot.number_used=bot.number_used+1
+                    if order.execution_ack.tx_status != constants.TX_SUCCESS_STATUS:
+                        bot.is_failed=True
+                    await bot.asave()
+                logging.info(f"FACTORY updated status for bot {bot}")
+            else:
+                logging.warning(f"FACTORY not found bot {bot} to update")
+        except Exception as e:
+            logging.error(f"FACTORY handle update-bot error {e}")
+
     async def run(self):
         while True:
             order = await self.order_broker.coro_get()
 
             if order is not None and isinstance(order, BotCreationOrder):
-                logging.info(f"FACTORY receive order {order}")
-                # query from DB
-                bot = await console.models.Bot.objects.filter(owner=order.owner.lower()).filter(number_used__lt=BOT_MAX_NUMBER_USED).filter(is_failed=False).afirst()
-                if bot is not None:
-                    logging.info(f"FACTORY found available bot #{bot.id} from DB")
-
-                    # send result via broker
-                    self.result_broker.put(Bot(
-                        address=bot.address,
-                        owner=bot.owner,
-                        deployed_at=int(datetime.timestamp(bot.deployed_at)),
-                        number_used=bot.number_used,
-                        is_failed=bot.is_failed,
-                    ))
-                else:
-                    bot = self.create_bot(order.owner)
-                    if bot is not None and isinstance(bot, Bot):
-                        # save to DB
-                        obj = console.models.Bot(
-                            address=bot.address.lower(),
-                            owner=bot.owner.lower(),
-                            deployed_at=make_aware(datetime.now()),
-                            number_used=0,
-                            is_failed=False,
-                        )
-                        await obj.asave()
-                        logging.info(f"FACTORY save bot to DB #{obj.id}")
-
-                        # send result via broker
-                        self.result_broker.put(bot)
-                    else:
-                        logging.error(f"FACTORY create bot for owner {order.owner} failed, retry...")
-                        await asyncio.sleep(RETRY_SLEEP_SECONDS)
-                        self.order_broker.put(BotCreationOrder(owner=order.owner, retry_times=order.retry_times+1))
+                logging.info(f"FACTORY receive bot-create order {order}")
+                await self.handle_create_bot(order)
             elif order is not None and isinstance(order, BotUpdateOrder):
-                logging.info(f"FACTORY receive order update {order.bot} status")
-
-                bot = await console.models.Bot.objects.filter(address=order.bot.address.lower()).afirst()
-                if bot is not None:
-                    if order.execution_ack.is_buy:
-                        bot.is_holding=True
-                        await bot.asave()
-                    else:
-                        bot.is_holding=False
-                        bot.number_used=bot.number_used+1
-                        if order.execution_ack.tx_status != constants.TX_SUCCESS_STATUS:
-                            bot.is_failed=True
-                        await bot.asave()
-                    logging.info(f"FACTORY updated status for bot {bot}")
-                else:
-                    logging.warning(f"FACTORY not found bot {bot} to update")
+                logging.info(f"FACTORY receive bot-update order {order.bot}")
+                await self.handle_update_bot(order)
             else:
                 logging.error(f"FACTORY invalid order {order}")
 
