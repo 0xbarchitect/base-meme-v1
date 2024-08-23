@@ -126,8 +126,8 @@ class PairInspector(metaclass=Singleton):
             logging.warning(f"INSPECTOR pair {pair.address} is blacklisted due to rogue creator")
             return MaliciousPair.CREATOR_BLACKLISTED
 
-        # inspect add/remove liquidity within time window
-        if is_initial:
+        # TODO: disable - inspect add/remove liquidity within time window
+        if False and is_initial:
             block_number_window = round(ROGUE_CREATOR_FROZEN_SECONDS/2)
             r=requests.get(f"https://api.basescan.org/api?module=account&action=txlist&address={pair.creator.lower()}&startblock={block_number-block_number_window}&endblock={block_number-1}&page=1&offset={CREATOR_TX_HISTORY_PAGE_SIZE}&sort=desc&apikey={self.select_api_key()}")
             if r.status_code==STATUS_CODE_SUCCESS:
@@ -242,14 +242,14 @@ if __name__=="__main__":
     )
 
     pair = Pair(
-        address="0x6ce5962f02db48e2146f9520d3ad5f76ff365ee9",
-        token="0xda07f7a71bef3f52ffd7f4898a41c9e98fa398ff",
+        address="0x56aa4f3e4423f5a76a57021984e4071a67da46fc",
+        token="0xf8b1f7b38972c0db678c7e0868172cb92ada24a3",
         token_index=0,
         reserve_eth=3,
         reserve_token=0,
         created_at=0,
         inspect_attempts=1,
-        creator="0xe2a5a1fc6cbd40828258965bc3dfcc3e035530fd",
+        creator="0x9b5cd354a9f370241bcd56a6c6c7bba4d8e263e1",
         contract_verified=False,
         number_tx_mm=0,
         last_inspected_block=0, # is the created_block as well
@@ -260,4 +260,4 @@ if __name__=="__main__":
     # print(f"number mm_tx {inspector.number_tx_mm(pair, 18441096, 18441130)}")
     # print(f"is malicious {inspector.is_malicious(pair)}")
 
-    inspector.inspect_batch([pair], 18778499, is_initial=True)
+    inspector.inspect_batch([pair], 18779770, is_initial=True)

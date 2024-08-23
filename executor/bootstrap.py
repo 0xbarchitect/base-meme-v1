@@ -16,6 +16,7 @@ NUMBER_EXECUTOR=8
 INITIAL_BALANCE=0.0006
 GAS_PRICE_GWEI=0.02
 TRANSFER_GAS_LIMIT=21000
+TREASURY_ADDRESS="0xA0e4075e79aE82E1071B1636b8b9129877D94BfD"
 
 class Bootstrap(metaclass=Singleton):
     def __init__(self, http_url, manager_key, bot_factory, bot_factory_abi, bot_implementation,
@@ -53,7 +54,7 @@ class Bootstrap(metaclass=Singleton):
 
     def fund_executor(self, addresses, amount):
         try:
-            for addr in addresses:
+            for addr in addresses.split(','):
                 tx_hash=self.w3.eth.send_transaction({
                     "from": self.manager.address,
                     "to": addr,
@@ -117,14 +118,12 @@ if __name__ == '__main__':
 
     # CREATE EXECUTORS
     #bootstrap.create_executor_and_fund(NUMBER_EXECUTOR)
-    #bootstrap.create_bot('0x5E442193545F0d2608380dd1822Ea5d0CA6f24F7')
+    bootstrap.create_bot('0xfeDF8F1Fe05028497b0B1f702a25e8cA58b7E7Ae')
 
     # FUND EXECUTORS ON-DEMAND
-    # bootstrap.fund_executor(['0x4209f8350A00A335ca057ccC61691655BbABd01A',
-    #                          '0x3083Eb34dEE19e9374aAFC0F6ceE52AdD4ef1654',
-    #                          '0xC451F31193B9994CaCA247E52A71dB38b1d09eD1'], INITIAL_BALANCE)
+    #bootstrap.fund_executor('0x2D7e00d964c4966dd535C3855f1919273768B8c1,0x732F08eF7b09aE96B054A5189B3375a2a94e6495,0x9C9D0569E75D8CfeD8e4Ff61d9e5b185C04C491d,0xbdac4A1D024f10B82e8B48A2C994AD40b29dEA62,0xfBAb1eE3F749aaF1f858e07c446210b16eCAde5c', INITIAL_BALANCE)
 
     # WITHDRAWAL
-    withdraw_keys='a1c7ffb760ec956ca45459039adb516ac181aabe3e9f7f4ce02ee8f42e59ab42,8ac032d8a83a524f5073fc7d9ee3d7ac2f60dc924d7cf3cf78fe887fefa18f18,ce3d97d042d51d14ba5f2c6bec77f2d3bcfa587b64a6696fd84ffa1eae5a661e,cec251e3b4a4df5813f7610d1f7fd2d2ce81a11c015fe94e2ba3354663e69a5b,b5d57ec695ab006000a153395611d56b23eac39cf8b445bfe21a3d05e6bc2e85,b3079d96446d12708fe5bf2307d3b6899001ff62a9d7f6b786e78ddd9a91ab22'
-    bootstrap.withdraw(withdraw_keys,'0xA0e4075e79aE82E1071B1636b8b9129877D94BfD')
+    #withdraw_keys='1892901d27645659a652c345d9285c2fd9315082c209d654fff712f3dfaeb48b,ed2375b50e8aa821752255d131e606f7a162adb0384dbbf494d8f9d44c71a933,b474aac2b4284bd17222e7712e15b0c91ddda448d67c7e400a01aef8ac41d923,fbac5e99893790f167e1eb7897f41b388b09f613e12b194df75cf0905103501e,e4bd8224699280bb807e1bf93c38f1cf3b241d4321d9b8abcff586734447665f,ccc7e65af4dc3b8e66b7b393a3657e153c86f924f4f4955afdd3930bc2d177e8,e391a76b0d9334859455a87e8a666be719338032345e21fdf5936093a82f1b0c,83d35286b8248ccb58f1e22606ac550e9a1d9de41bb848b9bf73b824f253a847'
+    #bootstrap.withdraw(withdraw_keys, TREASURY_ADDRESS)
 
