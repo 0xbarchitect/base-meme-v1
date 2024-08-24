@@ -194,10 +194,10 @@ if __name__ == '__main__':
 
     simulator = Simulator(
                     http_url=os.environ.get('HTTPS_URL'),
-                    signer=Web3.to_checksum_address(os.environ.get('EXECUTION_ADDRESSES').split(',')[0]),
+                    signer=Web3.to_checksum_address(os.environ.get('MANAGER_ADDRESS')),
                     router_address=Web3.to_checksum_address(os.environ.get('ROUTER_ADDRESS')),
                     weth=Web3.to_checksum_address(os.environ.get('WETH_ADDRESS')),
-                    bot=Web3.to_checksum_address(os.environ.get('INSPECTOR_BOT').split(',')[0]),
+                    bot=Web3.to_checksum_address(os.environ.get('INSPECTOR_BOT')),
                     pair_abi=PAIR_ABI,
                     weth_abi=WETH_ABI,
                     bot_abi=BOT_ABI,

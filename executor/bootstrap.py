@@ -2,6 +2,10 @@ import os
 import logging
 from decimal import Decimal
 
+from dotenv import load_dotenv
+load_dotenv()
+logging.basicConfig(level=logging.INFO)
+
 from web3 import Web3
 from web3.middleware import geth_poa_middleware, construct_sign_and_send_raw_middleware
 
@@ -117,8 +121,10 @@ if __name__ == '__main__':
     )
 
     # CREATE EXECUTORS
-    bootstrap.create_executor_and_fund(NUMBER_EXECUTOR)
-    #bootstrap.create_bot('0xfeDF8F1Fe05028497b0B1f702a25e8cA58b7E7Ae')
+    #bootstrap.create_executor_and_fund(NUMBER_EXECUTOR)
+
+    # CREATE INSPECTION BOT
+    bootstrap.create_bot(os.environ.get('MANAGER_ADDRESS'))
 
     # FUND EXECUTORS ON-DEMAND
     #bootstrap.fund_executor('0x2D7e00d964c4966dd535C3855f1919273768B8c1,0x732F08eF7b09aE96B054A5189B3375a2a94e6495,0x9C9D0569E75D8CfeD8e4Ff61d9e5b185C04C491d,0xbdac4A1D024f10B82e8B48A2C994AD40b29dEA62,0xfBAb1eE3F749aaF1f858e07c446210b16eCAde5c', INITIAL_BALANCE)
