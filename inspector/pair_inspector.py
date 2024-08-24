@@ -126,29 +126,30 @@ class PairInspector(metaclass=Singleton):
             logging.warning(f"INSPECTOR pair {pair.address} is blacklisted due to rogue creator")
             return MaliciousPair.CREATOR_BLACKLISTED
 
+        # TODO: disable due to ineffective
         # inspect add/remove liquidity within time window
-        if is_initial:
-            block_number_window = round(ROGUE_CREATOR_FROZEN_SECONDS/2)
-            r=requests.get(f"https://api.basescan.org/api?module=account&action=txlist&address={pair.creator.lower()}&startblock={block_number-block_number_window}&endblock={block_number-1}&page=1&offset={CREATOR_TX_HISTORY_PAGE_SIZE}&sort=desc&apikey={self.select_api_key()}")
-            if r.status_code==STATUS_CODE_SUCCESS:
-                res=r.json()
-                if int(res['status'])==1 and len(res['result'])>0:
-                    min_pair_lifetime=0
-                    end_block_number=0
-                    for tx in res['result']:
-                        if tx['from'].lower()==pair.creator.lower() and tx['to'].lower()==constants.UNI_V2_ROUTER_ADDRESS.lower():
-                            if tx['methodId'].lower()==constants.REMOVE_LIQUIDITY_METHOD_ID.lower():
-                                logging.debug(f"Remove liquidity at {tx['blockNumber']}")
-                                end_block_number=int(tx['blockNumber'])
-                            elif tx['methodId'].lower()==constants.ADD_LIQUIDITY_METHOD_ID.lower():
-                                logging.debug(f"Add liquidity at {tx['blockNumber']}")
-                                if min_pair_lifetime>end_block_number-int(tx['blockNumber']) or min_pair_lifetime==0:
-                                    min_pair_lifetime=end_block_number-int(tx['blockNumber'])
-                                    logging.debug(f"INSPECTOR Min pair lifetime updated {min_pair_lifetime}")
+        # if is_initial:
+        #     block_number_window = round(ROGUE_CREATOR_FROZEN_SECONDS/2)
+        #     r=requests.get(f"https://api.basescan.org/api?module=account&action=txlist&address={pair.creator.lower()}&startblock={block_number-block_number_window}&endblock={block_number-1}&page=1&offset={CREATOR_TX_HISTORY_PAGE_SIZE}&sort=desc&apikey={self.select_api_key()}")
+        #     if r.status_code==STATUS_CODE_SUCCESS:
+        #         res=r.json()
+        #         if int(res['status'])==1 and len(res['result'])>0:
+        #             min_pair_lifetime=0
+        #             end_block_number=0
+        #             for tx in res['result']:
+        #                 if tx['from'].lower()==pair.creator.lower() and tx['to'].lower()==constants.UNI_V2_ROUTER_ADDRESS.lower():
+        #                     if tx['methodId'].lower()==constants.REMOVE_LIQUIDITY_METHOD_ID.lower():
+        #                         logging.debug(f"Remove liquidity at {tx['blockNumber']}")
+        #                         end_block_number=int(tx['blockNumber'])
+        #                     elif tx['methodId'].lower()==constants.ADD_LIQUIDITY_METHOD_ID.lower():
+        #                         logging.debug(f"Add liquidity at {tx['blockNumber']}")
+        #                         if min_pair_lifetime>end_block_number-int(tx['blockNumber']) or min_pair_lifetime==0:
+        #                             min_pair_lifetime=end_block_number-int(tx['blockNumber'])
+        #                             logging.debug(f"INSPECTOR Min pair lifetime updated {min_pair_lifetime}")
 
-                    if min_pair_lifetime>0 and min_pair_lifetime*2<(MAX_INSPECT_ATTEMPTS-1)*INSPECT_INTERVAL_SECONDS+HOLD_MAX_DURATION_SECONDS:
-                        logging.warning(f"INSPECTOR Creator {pair.creator} detected malicious caused by Min-pair-lifetime {min_pair_lifetime*2}s less than Expected-hold-time {(MAX_INSPECT_ATTEMPTS-1)*INSPECT_INTERVAL_SECONDS+HOLD_MAX_DURATION_SECONDS}s")
-                        return MaliciousPair.CREATOR_RUGGED
+        #             if min_pair_lifetime>0 and min_pair_lifetime*2<(MAX_INSPECT_ATTEMPTS-1)*INSPECT_INTERVAL_SECONDS+HOLD_MAX_DURATION_SECONDS:
+        #                 logging.warning(f"INSPECTOR Creator {pair.creator} detected malicious caused by Min-pair-lifetime {min_pair_lifetime*2}s less than Expected-hold-time {(MAX_INSPECT_ATTEMPTS-1)*INSPECT_INTERVAL_SECONDS+HOLD_MAX_DURATION_SECONDS}s")
+        #                 return MaliciousPair.CREATOR_RUGGED
         
         return MaliciousPair.UNMALICIOUS
     
@@ -168,10 +169,9 @@ class PairInspector(metaclass=Singleton):
         if is_initial and not result.reserve_inrange:
             return result        
 
-        # TODO: disable this check due to ineffective
-        #result.is_malicious=self.is_malicious(pair, block_number, is_initial)
-        #if result.is_malicious != MaliciousPair.UNMALICIOUS:
-            #return result
+        result.is_malicious=self.is_malicious(pair, block_number, is_initial)
+        if result.is_malicious != MaliciousPair.UNMALICIOUS:
+            return result
 
         result.contract_verified=self.is_contract_verified(pair)
         if not result.contract_verified:
