@@ -33,6 +33,7 @@ class BaseExecutor(metaclass=Singleton):
         self.w3.eth.default_account = self.treasury.address
 
         self.accounts = [self.build_w3_account(priv_key) for priv_key in executor_keys]
+        self.insert_executors_db()
 
         self.gas_limit = gas_limit
         self.max_fee_per_gas = max_fee_per_gas
@@ -45,20 +46,28 @@ class BaseExecutor(metaclass=Singleton):
     def build_w3_account(self, private_key) -> W3Account:
         acct = self.w3.eth.account.from_key(private_key)
 
-        # insert to db
-        executor = console.models.Executor.objects.filter(address=acct.address.lower()).first()
-        if executor is None:
-            executor = console.models.Executor(
-                address=acct.address.lower(),
-                initial_balance=Web3.from_wei(self.w3.eth.get_balance(acct.address),'ether')
-            )
-            executor.save()
-            logging.info(f"EXECUTOR Create executor {acct.address} in DB #{executor.id}")
-
         return W3Account(
             acct,
             private_key,
         )
+    
+    def insert_executors_db(self):
+        addresses = [acct.w3_account.address for acct in self.accounts]
+
+        # delete old executors
+        console.models.Executor.objects.all().delete()
+        logging.info(f"EXECUTOR Delete all old executors")
+
+        # insert current executors to db
+        for address in addresses:
+            executor = console.models.Executor.objects.filter(address=address.lower()).first()
+            if executor is None:
+                executor = console.models.Executor(
+                    address=address.lower(),
+                    initial_balance=Web3.from_wei(self.w3.eth.get_balance(address),'ether')
+                )
+                executor.save()
+                logging.info(f"EXECUTOR Create executor {address} in DB #{executor.id}")
 
     def get_block_timestamp(self):
         block = self.w3.eth.get_block('latest')
