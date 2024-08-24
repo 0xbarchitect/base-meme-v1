@@ -74,8 +74,20 @@ class Reporter(metaclass=Singleton):
                     logging.debug(f"pair exists id #{pair_ins.id}")
 
         async def update_pnl(position: console.models.Position):
+            async def determine_number_position(day_obj):
+                day_str = day_obj.strftime('%Y-%m-%d')
+                hour_str = day_obj.strftime('%H')
+                return await console.models.Position.objects.filter(purchased_at__date=day_str, purchased_at__hour=hour_str).acount()
+            
+            async def calculate_hourly_pnl(day_obj):
+                day_str = day_obj.strftime('%Y-%m-%d')
+                hour_str = day_obj.strftime('%H')
+                sum = await console.models.Position.objects.filter(purchased_at__date=day_str, purchased_at__hour=hour_str).aaggregate(Sum('pnl'))
+                return Decimal(sum['pnl__sum'])
+
             async def calculate_avg_daily_pnl(day_obj):
-                sum = await console.models.Position.objects.filter(purchased_at__date=day_obj, is_liquidated=1).aaggregate(Sum('pnl'))
+                day_str = day_obj.strftime('%Y-%m-%d')
+                sum = await console.models.Position.objects.filter(purchased_at__date=day_str).aaggregate(Sum('pnl'))
                 hour_elapsed = int(datetime.now().strftime('%H'))+1
                 return Decimal(sum['pnl__sum']/hour_elapsed)
 
@@ -84,21 +96,22 @@ class Reporter(metaclass=Singleton):
             if pnl is None:
                 pnl = console.models.PnL(
                     timestamp=timestamp,
-                    number_positions=1,
-                    hourly_pnl=0,
-                    avg_daily_pnl=await calculate_avg_daily_pnl(datetime.now()),
+                    number_positions=await determine_number_position(position.created_at),
+                    hourly_pnl=await calculate_hourly_pnl(position.created_at),
+                    avg_daily_pnl=await calculate_avg_daily_pnl(position.created_at),
                 )
-                await pnl.asave()
-                logging.debug(f"REPORTER Create new PnL #{pnl.id}")
-            else:
-                if position.is_liquidated==1:
-                    pnl.hourly_pnl += float(position.pnl)
-                    pnl.avg_daily_pnl = await calculate_avg_daily_pnl(datetime.now())
-                else:
-                    pnl.number_positions += 1                    
 
                 await pnl.asave()
-                logging.debug(f"REPORTER Update PnL #{pnl.id}")
+                logging.info(f"REPORTER Create new PnL #{pnl.id}")
+            else:
+                if position.is_liquidated==1:
+                    pnl.hourly_pnl=await calculate_hourly_pnl(position.created_at)
+                    pnl.avg_daily_pnl=await calculate_avg_daily_pnl(position.created_at)
+                else:
+                    pnl.number_positions=await determine_number_position(position.created_at)
+
+                await pnl.asave()
+                logging.info(f"REPORTER Update existing PnL #{pnl.id}")
 
         async def save_position(execution_ack):
             block = await Block.objects.filter(block_number=execution_ack.block_number).afirst()
@@ -150,9 +163,9 @@ class Reporter(metaclass=Singleton):
                     investment=Decimal(execution_ack.amount_in),
                 )
                 await position.asave()
-                logging.debug(f"position saved id #{position.id}")
+                logging.info(f"REPORTER Create new Position #{position.id}")
             else:
-                logging.debug(f"position exists id #{position.id}, update...")
+                logging.info(f"REPORTER Update existing Position #{position.id}")
 
                 if not execution_ack.is_buy:
                     position.is_liquidated=1
@@ -256,7 +269,7 @@ if __name__ == '__main__':
             ),
             amount_in=1,
             amount_out=1000,
-            is_buy=False,
+            is_buy=True,
             signer='0xecb137C67c93eA50b8C259F8A8D08c0df18222d9',
             bot='0xAfaD9BA8CFaa08fB68820795E8bb33f80d0463a5',
         )
