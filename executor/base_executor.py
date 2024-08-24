@@ -52,11 +52,11 @@ class BaseExecutor(metaclass=Singleton):
         )
     
     def insert_executors_db(self):
-        addresses = [acct.w3_account.address for acct in self.accounts]
+        addresses = [acct.w3_account.address.lower() for acct in self.accounts]
 
         # delete old executors
-        console.models.Executor.objects.all().delete()
-        logging.info(f"EXECUTOR Delete all old executors")
+        console.models.Executor.objects.exclude(address__in=addresses).delete()
+        logging.info(f"EXECUTOR Delete all old executors...")
 
         # insert current executors to db
         for address in addresses:
@@ -64,10 +64,12 @@ class BaseExecutor(metaclass=Singleton):
             if executor is None:
                 executor = console.models.Executor(
                     address=address.lower(),
-                    initial_balance=Web3.from_wei(self.w3.eth.get_balance(address),'ether')
+                    initial_balance=Web3.from_wei(self.w3.eth.get_balance(Web3.to_checksum_address(address)),'ether')
                 )
                 executor.save()
                 logging.info(f"EXECUTOR Create executor {address} in DB #{executor.id}")
+            else:
+                logging.info(f"EXECUTOR Executor {address} existed #{executor.id}")
 
     def get_block_timestamp(self):
         block = self.w3.eth.get_block('latest')
