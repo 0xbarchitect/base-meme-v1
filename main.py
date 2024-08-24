@@ -141,7 +141,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
 
         if len(glb_inventory)>0:
             if not glb_liquidated:
-                for position in glb_inventory:
+                for idx,position in enumerate(glb_inventory):
                     is_liquidated = False
                     for pair in block_data.inventory:
                         if position.pair.address == pair.address:
@@ -160,8 +160,9 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                     if is_liquidated:
                         with glb_lock:
                             glb_liquidated = True
+                            glb_inventory.pop(idx)
+                        logging.warning(f"MAIN Remove {position} from inventory at index #{idx}")
 
-                        logging.warning(f"MAIN close {position}")
                         execution_broker.put(ExecutionOrder(
                                     block_number=block_data.block_number,
                                     block_timestamp=block_data.block_timestamp,
@@ -353,38 +354,31 @@ async def main():
                             ))
                             logging.info(f"MAIN append {report.pair.address} to inventory")
                     else:
-                        for idx, position in enumerate(glb_inventory):
-                            if position.pair.address == report.pair.address:
-                                with glb_lock:
-                                    glb_inventory.pop(idx)
-                                    glb_fullfilled -= 1
-                                    glb_liquidated = False
+                        with glb_lock:
+                            glb_fullfilled -= 1
+                            glb_liquidated = False
 
-                                    pnl = (Decimal(report.amount_out)-Decimal(BUY_AMOUNT)-Decimal(GAS_COST))/Decimal(BUY_AMOUNT)*Decimal(100)
-                                    glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] + pnl)
+                            pnl = (Decimal(report.amount_out)-Decimal(BUY_AMOUNT)-Decimal(GAS_COST))/Decimal(BUY_AMOUNT)*Decimal(100)
+                            glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] + pnl)
 
-                                    logging.info(f"MAIN remove {position} at index #{idx} from inventory, update PnL {glb_daily_pnl}")
+                            logging.info(f"MAIN update PnL {glb_daily_pnl}")
                 else:
                     logging.info(f"MAIN execution failed, reset lock...")
                     if report.is_buy:
                         with glb_lock:
                             glb_fullfilled -= 1
                     else:
-                        for idx, position in enumerate(glb_inventory):
-                            if position.pair.address == report.pair.address:
-                                with glb_lock:
-                                    glb_inventory.pop(idx)
-                                    glb_fullfilled -= 1
-                                    glb_liquidated = False
-                                    glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] - 100)
+                        with glb_lock:
+                            glb_fullfilled -= 1
+                            glb_liquidated = False
+                            glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] - 100)
 
-                                report_broker.put(ReportData(
-                                    type=ReportDataType.BLACKLIST_ADDED,
-                                    data=[report.pair.creator]
-                                ))
-                                logging.warning(f"MAIN add {report.pair.creator} to blacklist")
-
-                                logging.info(f"MAIN remove {position} at index #{idx} from inventory, update PnL {glb_daily_pnl}")
+                        report_broker.put(ReportData(
+                            type=ReportDataType.BLACKLIST_ADDED,
+                            data=[report.pair.creator]
+                        ))
+                        logging.warning(f"MAIN add {report.pair.creator} to blacklist")
+                        logging.info(f"MAIN update PnL {glb_daily_pnl}")
 
     async def handle_control_order():
         global glb_lock

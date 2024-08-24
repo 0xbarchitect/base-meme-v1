@@ -174,7 +174,7 @@ class Reporter(metaclass=Singleton):
             else:
                 logging.info(f"REPORTER Update existing Position #{position.id}")
 
-                if not execution_ack.is_buy:
+                if not execution_ack.is_buy and position.is_liquidated != 1:
                     position.is_liquidated=1
                     position.liquidated_at=make_aware(datetime.fromtimestamp(int(time())))
                     position.sell_price=Decimal(execution_ack.amount_out)/Decimal(execution_ack.amount_in) if execution_ack.amount_in>0 and not execution_ack.is_buy else 0

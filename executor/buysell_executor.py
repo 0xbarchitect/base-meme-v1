@@ -4,6 +4,7 @@ import os
 import logging
 import time
 from decimal import Decimal
+import threading
 
 from concurrent.futures import ThreadPoolExecutor
 from web3 import Web3
@@ -17,6 +18,7 @@ from executor import BaseExecutor
 from data import ExecutionOrder, Pair, ExecutionAck, TxStatus, BotCreationOrder, Bot, BotUpdateOrder
 from factory import BotFactory
 
+glb_lock = threading.Lock()
 BOT_MAX_NUMBER_USED=int(os.environ.get('BOT_MAX_NUMBER_USED'))
 EXECUTION_GAS_LIMIT=int(os.environ.get('EXECUTION_GAS_LIMIT'))
 
@@ -179,6 +181,8 @@ class BuySellExecutor(BaseExecutor):
                         acct.bot = result
 
     async def handle_execution_order(self):
+        global glb_lock
+
         logging.info(f"EXECUTOR listen for order...")
         executor = ThreadPoolExecutor(max_workers=len(self.accounts))
         counter = 0
@@ -186,15 +190,17 @@ class BuySellExecutor(BaseExecutor):
             execution_data = await self.order_receiver.coro_get()
 
             if execution_data is not None and isinstance(execution_data, ExecutionOrder):
+                with glb_lock:
+                    counter += 1
+
                 logging.info(f"EXECUTOR receive order #{counter} {execution_data}")
                 deadline = execution_data.block_timestamp + self.deadline_delay if execution_data.block_timestamp > 0 else self.get_block_timestamp() + self.deadline_delay
                 
                 if execution_data.signer is None:
-                    counter += 1
                     idx = (counter - 1) % len(self.accounts)
 
                     if self.accounts[idx].bot is not None:
-                        future = executor.submit(self.execute, 
+                        future = executor.submit(self.execute,
                                                 idx,
                                                 execution_data.block_number,
                                                 execution_data.is_buy,
