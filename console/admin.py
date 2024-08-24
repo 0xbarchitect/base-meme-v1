@@ -1,7 +1,13 @@
+import os
+from web3 import Web3
+from dotenv import load_dotenv
+load_dotenv()
+
 from django.contrib import admin
 from django.utils.html import format_html
 
-from console.models import Block, Transaction, Pair, Position, PositionTransaction, BlackList, Bot
+from console.models import Block, Transaction, Pair, Position, PositionTransaction, BlackList, Bot, \
+                            Executor, PnL
 
 class ConsoleAdminSite(admin.AdminSite):
     index_title = "Console"
@@ -95,6 +101,39 @@ class BotAdmin(FullPermissionModelAdmin):
         <button><a class="btn" href="/admin/console/bot/{obj.id}/change/">Edit</a></button>&emsp;
         """)
     
+class PnlAdmin(FullPermissionModelAdmin):
+    list_filter = ['is_deleted']
+    list_display = ('id', 'timestamp', 'number_positions', 'hourly_pnl', 'avg_daily_pnl', 'buttons')
+    fields = ('timestamp', 'number_positions', 'hourly_pnl', 'avg_daily_pnl',)
+    
+    @admin.display(description='Actions')
+    def buttons(self, obj):
+        return format_html(f"""
+        <button><a class="btn" href="/admin/console/pnl/{obj.id}/change/">Edit</a></button>&emsp;
+        """)
+    
+class ExecutorAdmin(FullPermissionModelAdmin):
+    w3 = Web3(Web3.HTTPProvider(os.environ.get('HTTPS_URL')))
+
+    list_filter = ['is_deleted']
+    list_display = ('id', 'address', 'initial_balance_h', 'current_balance', 'created_at', 'buttons')
+    fields = ('address', 'initial_balance',)
+    readonly_fields = ('address', 'initial_balance',)
+    
+    @admin.display(description='Actions')
+    def buttons(self, obj):
+        return format_html(f"""
+        <button><a class="btn" href="/admin/console/executor/{obj.id}/change/">Edit</a></button>&emsp;
+        """)
+    
+    @admin.display()
+    def initial_balance_h(self,obj):
+        return format_html(f"{round(obj.initial_balance,6)}")
+    
+    @admin.display()
+    def current_balance(self, obj):
+        return format_html(f"{round(Web3.from_wei(self.w3.eth.get_balance(Web3.to_checksum_address(obj.address)),'ether'),6)}")
+    
 admin_site = ConsoleAdminSite(name="console_admin")
 
 admin_site.register(Block, BlockAdmin)
@@ -103,3 +142,5 @@ admin_site.register(Pair, PairAdmin)
 admin_site.register(Position, PositionAdmin)
 admin_site.register(BlackList, BlacklistAdmin)
 admin_site.register(Bot, BotAdmin)
+admin_site.register(PnL, PnlAdmin)
+admin_site.register(Executor, ExecutorAdmin)

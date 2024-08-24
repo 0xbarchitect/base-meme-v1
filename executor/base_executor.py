@@ -5,6 +5,12 @@ from decimal import Decimal
 from web3 import Web3
 from web3.middleware import geth_poa_middleware, construct_sign_and_send_raw_middleware
 
+import django
+from django.utils.timezone import make_aware
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "admin.settings")
+django.setup()
+import console.models
+
 import sys # for testing
 sys.path.append('..')
 
@@ -39,13 +45,23 @@ class BaseExecutor(metaclass=Singleton):
     def build_w3_account(self, private_key) -> W3Account:
         acct = self.w3.eth.account.from_key(private_key)
 
+        # insert to db
+        executor = console.models.Executor.objects.filter(address=acct.address.lower()).first()
+        if executor is None:
+            executor = console.models.Executor(
+                address=acct.address.lower(),
+                initial_balance=Web3.from_wei(self.w3.eth.get_balance(acct.address),'ether')
+            )
+            executor.save()
+            logging.info(f"EXECUTOR Create executor {acct.address} in DB #{executor.id}")
+
         return W3Account(
             acct,
             private_key,
         )
 
     def get_block_timestamp(self):
-        block = self.w3.eth.get_block('latest')        
+        block = self.w3.eth.get_block('latest')
         return block['timestamp']
 
 

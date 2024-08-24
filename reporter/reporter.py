@@ -14,6 +14,7 @@ from helpers import constants
 
 import django
 from django.utils.timezone import make_aware
+from django.db.models import Sum
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "admin.settings")
 django.setup()
 
@@ -72,6 +73,33 @@ class Reporter(metaclass=Singleton):
                 else:
                     logging.debug(f"pair exists id #{pair_ins.id}")
 
+        async def update_pnl(position: console.models.Position):
+            async def calculate_avg_daily_pnl(day_obj):
+                sum = await console.models.Position.objects.filter(purchased_at__date=day_obj, is_liquidated=1).aaggregate(Sum('pnl'))
+                hour_elapsed = int(datetime.now().strftime('%H'))+1
+                return Decimal(sum['pnl__sum']/hour_elapsed)
+
+            timestamp = position.created_at.strftime('%Y-%m-%d %H:00:00')
+            pnl = await console.models.PnL.objects.filter(timestamp=timestamp).afirst()
+            if pnl is None:
+                pnl = console.models.PnL(
+                    timestamp=timestamp,
+                    number_positions=1,
+                    hourly_pnl=0,
+                    avg_daily_pnl=await calculate_avg_daily_pnl(datetime.now()),
+                )
+                await pnl.asave()
+                logging.debug(f"REPORTER Create new PnL #{pnl.id}")
+            else:
+                if position.is_liquidated==1:
+                    pnl.hourly_pnl += float(position.pnl)
+                    pnl.avg_daily_pnl = await calculate_avg_daily_pnl(datetime.now())
+                else:
+                    pnl.number_positions += 1                    
+
+                await pnl.asave()
+                logging.debug(f"REPORTER Update PnL #{pnl.id}")
+
         async def save_position(execution_ack):
             block = await Block.objects.filter(block_number=execution_ack.block_number).afirst()
             if block is None:
@@ -119,6 +147,7 @@ class Reporter(metaclass=Singleton):
                     pnl=0,
                     signer=execution_ack.signer.lower() if execution_ack.signer is not None else None,
                     bot=execution_ack.bot.lower() if execution_ack.bot is not None else None,
+                    investment=Decimal(execution_ack.amount_in),
                 )
                 await position.asave()
                 logging.debug(f"position saved id #{position.id}")
@@ -130,8 +159,8 @@ class Reporter(metaclass=Singleton):
                     position.liquidated_at=make_aware(datetime.fromtimestamp(int(time())))
                     position.sell_price=Decimal(execution_ack.amount_out)/Decimal(execution_ack.amount_in) if execution_ack.amount_in>0 and not execution_ack.is_buy else 0
                     position.liquidation_attempts=position.liquidation_attempts+1
-                    
                     position.pnl=(Decimal(execution_ack.amount_out)-Decimal(BUY_AMOUNT)-Decimal(GAS_COST))/Decimal(BUY_AMOUNT)*Decimal(100) if execution_ack.amount_in>0 and not execution_ack.is_buy else 0
+                    position.returns=Decimal(execution_ack.amount_out)
 
                     await position.asave()
 
@@ -145,7 +174,10 @@ class Reporter(metaclass=Singleton):
                 await position_tx.asave()
                 logging.debug(f"position tx saved id #{position_tx.id}")
             else:
-                logging.debug(f"position tx exists id #{position_tx.id}")            
+                logging.debug(f"position tx exists id #{position_tx.id}")
+
+            # update PnL
+            await update_pnl(position)
 
         async def save_blacklist(data):
             for addr in data:
@@ -174,7 +206,7 @@ class Reporter(metaclass=Singleton):
                 raise Exception(f"report type {report.type} is unsupported")
             
         except Exception as e:
-            logging.error(f"REPORTER save data to db failed with error {e}")
+            logging.error(f"REPORTER save data to db failed with error:: {e}")
 
 if __name__ == '__main__':
     from dotenv import load_dotenv
@@ -216,7 +248,7 @@ if __name__ == '__main__':
             tx_hash='0xabc',
             tx_status=0,
             pair=Pair(
-                address='0x20efbb1273df765721127dfc94da1cd2942d594d',
+                address='0xc0efbb1273df765721127dfc94da1cd2942d594d',
                 token='0x3b4574cd0d7f784b252d06f99d0e7127d20e1484', 
                 token_index=0,
                 reserve_eth=1,

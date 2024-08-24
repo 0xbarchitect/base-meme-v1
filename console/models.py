@@ -1,4 +1,5 @@
 from django.db import models
+from datetime import datetime
 
 # Create your models here.
 class Block(models.Model):
@@ -80,6 +81,8 @@ class Position(models.Model):
     pnl = models.FloatField(null=True, default=0)
     signer = models.CharField(max_length=42, null=True)
     bot = models.CharField(max_length=42, null=True)
+    investment = models.FloatField(null=True)
+    returns = models.FloatField(null=True)
 
     created_at = models.DateTimeField(null=True,auto_now_add=True)
     updated_at = models.DateTimeField(null=True,auto_now=True)
@@ -130,6 +133,38 @@ class Bot(models.Model):
     number_used = models.IntegerField(null=True, default=0)
     is_failed = models.BooleanField(null=True, default=False)
     is_holding = models.BooleanField(null=True, default=False)
+
+    created_at = models.DateTimeField(null=True,auto_now_add=True)
+    updated_at = models.DateTimeField(null=True,auto_now=True)
+    is_deleted = models.IntegerField(null=True,default=0)
+
+    def __str__(self) -> str:
+        return f"{self.address}"
+    
+class PnL(models.Model):
+    class Meta():
+        db_table = 'pnl'
+
+    id = models.BigAutoField(primary_key=True)
+    timestamp = models.CharField(max_length=20, unique=True)
+    number_positions = models.IntegerField(null=True, default=0)
+    hourly_pnl = models.FloatField(null=True, default=0)
+    avg_daily_pnl = models.FloatField(null=True, default=0)
+
+    created_at = models.DateTimeField(null=True,auto_now_add=True)
+    updated_at = models.DateTimeField(null=True,auto_now=True)
+    is_deleted = models.IntegerField(null=True,default=0)
+
+    def __str__(self) -> str:
+        return f"{self.timestamp}"
+    
+class Executor(models.Model):
+    class Meta():
+        db_table = "executor"
+
+    id = models.BigAutoField(primary_key=True)
+    address = models.CharField(max_length=42, unique=True)
+    initial_balance = models.FloatField(null=True, default=0)
 
     created_at = models.DateTimeField(null=True,auto_now_add=True)
     updated_at = models.DateTimeField(null=True,auto_now=True)
