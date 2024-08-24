@@ -79,6 +79,11 @@ class Reporter(metaclass=Singleton):
                 hour_str = day_obj.strftime('%H')
                 return await console.models.Position.objects.filter(purchased_at__date=day_str, purchased_at__hour=hour_str).acount()
             
+            async def determine_number_failed(day_obj):
+                day_str = day_obj.strftime('%Y-%m-%d')
+                hour_str = day_obj.strftime('%H')
+                return await console.models.Position.objects.filter(purchased_at__date=day_str, purchased_at__hour=hour_str, pnl__lte=-100).acount()
+            
             async def calculate_hourly_pnl(day_obj):
                 day_str = day_obj.strftime('%Y-%m-%d')
                 hour_str = day_obj.strftime('%H')
@@ -99,6 +104,7 @@ class Reporter(metaclass=Singleton):
                     number_positions=await determine_number_position(position.created_at),
                     hourly_pnl=await calculate_hourly_pnl(position.created_at),
                     avg_daily_pnl=await calculate_avg_daily_pnl(position.created_at),
+                    number_failed=await determine_number_failed(position.created_at),
                 )
 
                 await pnl.asave()
@@ -107,6 +113,7 @@ class Reporter(metaclass=Singleton):
                 if position.is_liquidated==1:
                     pnl.hourly_pnl=await calculate_hourly_pnl(position.created_at)
                     pnl.avg_daily_pnl=await calculate_avg_daily_pnl(position.created_at)
+                    pnl.number_failed=await determine_number_failed(position.created_at)
                 else:
                     pnl.number_positions=await determine_number_position(position.created_at)
 
@@ -261,15 +268,15 @@ if __name__ == '__main__':
             tx_hash='0xabc',
             tx_status=0,
             pair=Pair(
-                address='0xc0efbb1273df765721127dfc94da1cd2942d594d',
-                token='0x3b4574cd0d7f784b252d06f99d0e7127d20e1484', 
+                address='0x7c2aa8abd229d4fc658ea98373899ad5746675c3',
+                token='0x6d630d5854eede216b5ee453cd4c7682cba6fb22',
                 token_index=0,
                 reserve_eth=1,
                 reserve_token=1,
             ),
             amount_in=1,
-            amount_out=1000,
-            is_buy=True,
+            amount_out=0,
+            is_buy=False,
             signer='0xecb137C67c93eA50b8C259F8A8D08c0df18222d9',
             bot='0xAfaD9BA8CFaa08fB68820795E8bb33f80d0463a5',
         )

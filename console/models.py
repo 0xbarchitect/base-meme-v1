@@ -150,6 +150,7 @@ class PnL(models.Model):
     number_positions = models.IntegerField(null=True, default=0)
     hourly_pnl = models.FloatField(null=True, default=0)
     avg_daily_pnl = models.FloatField(null=True, default=0)
+    number_failed = models.IntegerField(null=True, default=0)
 
     created_at = models.DateTimeField(null=True,auto_now_add=True)
     updated_at = models.DateTimeField(null=True,auto_now=True)

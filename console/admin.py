@@ -69,15 +69,27 @@ class PositionAdmin(FullPermissionModelAdmin):
     inlines = [PositionTransactionInline]
 
     list_filter = ['is_deleted']
-    list_display = ('id', 'pair', 'bot', 'amount', 'purchased_at', 'is_liquidated', 'liquidated_at', 'liquidation_attempts', 'pnl', 'buttons')
-    fields = ('pair', 'signer', 'bot', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidated_at', 'liquidation_attempts', 'pnl',)
-    readonly_fields = ('pair', 'signer', 'bot', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidated_at', 'liquidation_attempts', 'pnl',)
+    list_display = ('id', 'pair', 'bot', 'purchased_at', 'is_liquidated', 'liquidated_at', 'investment', 'returns_h', 'pnl_h', 'buttons')
+    fields = ('pair', 'signer', 'bot', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidated_at', 'liquidation_attempts', 'investment', 'returns', 'pnl',)
+    readonly_fields = ('pair', 'signer', 'bot', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidated_at', 'liquidation_attempts', 'investment', 'returns', 'pnl',)
     
     @admin.display(description='Actions')
     def buttons(self, obj):
         return format_html(f"""
         <button><a class="btn" href="/admin/console/position/{obj.id}/change/">Edit</a></button>&emsp;
         """)
+    
+    @admin.display()
+    def returns_h(self, obj):
+        if obj.returns is not None:
+            return format_html(f"{round(obj.returns, 9)}")
+        return format_html(f"-")
+    
+    @admin.display()
+    def pnl_h(self, obj):
+        if obj.pnl is not None:
+            return format_html(f"{round(obj.pnl, 5)}")
+        return format_html(f"-")
     
 class BlacklistAdmin(FullPermissionModelAdmin):
     list_filter = ['is_deleted']
@@ -103,8 +115,9 @@ class BotAdmin(FullPermissionModelAdmin):
     
 class PnlAdmin(FullPermissionModelAdmin):
     list_filter = ['is_deleted']
-    list_display = ('id', 'timestamp', 'number_positions', 'hourly_pnl', 'avg_daily_pnl', 'buttons')
-    fields = ('timestamp', 'number_positions', 'hourly_pnl', 'avg_daily_pnl',)
+    list_display = ('id', 'timestamp', 'number_positions', 'number_failed', 'hourly_pnl', 'avg_daily_pnl', 'buttons')
+    fields = ('timestamp', 'number_positions', 'number_failed', 'hourly_pnl', 'avg_daily_pnl',)
+    readonly_fields = ('timestamp', 'number_positions', 'number_failed', 'hourly_pnl', 'avg_daily_pnl',)
     
     @admin.display(description='Actions')
     def buttons(self, obj):
