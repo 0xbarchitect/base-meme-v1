@@ -10,7 +10,8 @@ import threading
 import websockets
 
 from web3 import AsyncWeb3, Web3
-from web3.providers import WebsocketProviderV2, HTTPProvider
+from web3.providers import WebsocketProviderV2
+from web3.middleware import async_geth_poa_middleware
 
 import sys # for testing
 sys.path.append('..')
@@ -42,6 +43,7 @@ class BlockWatcher(metaclass=Singleton):
         global glb_lock
 
         async for w3Async in AsyncWeb3.persistent_websocket(WebsocketProviderV2(self.wss_url)):
+            w3Async.middleware_onion.inject(async_geth_poa_middleware, layer=0)
             try:
                 logging.info(f"WATCHER websocket connected...")
 
