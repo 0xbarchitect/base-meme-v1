@@ -23,6 +23,7 @@ from helpers import async_timer_decorator, load_abi, timer_decorator
 ADDRESS_ZERO="0x0000000000000000000000000000000000000000"
 
 glb_lock = threading.Lock()
+glb_middleware_added = False
 
 class BlockWatcher(metaclass=Singleton):
     def __init__(self, https_url, wss_url, block_broker, report_broker, factory_address, factory_abi, weth_address, pair_abi) -> None:
@@ -41,9 +42,14 @@ class BlockWatcher(metaclass=Singleton):
 
     async def listen_block(self):
         global glb_lock
+        global glb_middleware_added
 
         async for w3Async in AsyncWeb3.persistent_websocket(WebsocketProviderV2(self.wss_url)):
-            w3Async.middleware_onion.inject(async_geth_poa_middleware, layer=0)
+            if not glb_middleware_added:
+                with glb_lock:
+                    glb_middleware_added=True
+                w3Async.middleware_onion.inject(async_geth_poa_middleware, layer=0)
+                
             try:
                 logging.info(f"WATCHER websocket connected...")
 
