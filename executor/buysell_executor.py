@@ -15,7 +15,7 @@ sys.path.append('..')
 
 from helpers import timer_decorator, load_abi, constants
 from executor import BaseExecutor
-from data import ExecutionOrder, Pair, ExecutionAck, TxStatus, BotCreationOrder, Bot, BotUpdateOrder
+from data import ExecutionOrder, Pair, ExecutionAck, TxStatus, BotCreationOrder, Bot, BotUpdateOrder, Position
 from factory import BotFactory
 
 glb_lock = threading.Lock()
@@ -58,7 +58,7 @@ class BuySellExecutor(BaseExecutor):
             
 
     @timer_decorator
-    def execute(self, idx, lead_block, is_buy, pair, amount_in, amount_out_min, deadline, bot=None):
+    def execute(self, idx, lead_block, is_buy, pair, amount_in, amount_out_min, deadline, bot=None, position:Position=None):
         def prepare_tx_bot(signer, bot, nonce):
             tx = None            
             if is_buy:
@@ -129,6 +129,7 @@ class BuySellExecutor(BaseExecutor):
                 is_buy=is_buy,
                 signer=signer,
                 bot=bot.address,
+                position=position,
             )
 
             logging.info(f"EXECUTOR Acknowledgement {ack}")
@@ -147,6 +148,7 @@ class BuySellExecutor(BaseExecutor):
                 is_buy=is_buy,
                 signer=signer,
                 bot=bot.address,
+                position=position,
             )
 
             logging.info(f"EXECUTOR failed execution ack {ack}")
@@ -227,6 +229,7 @@ class BuySellExecutor(BaseExecutor):
                             execution_data.amount_out_min, 
                             deadline,
                             execution_data.bot,
+                            execution_data.position,
                         )
                     else:
                         logging.error(f"EXECUTOR not found signer for order {execution_data}")

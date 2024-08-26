@@ -99,9 +99,9 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
     global glb_daily_pnl
     global glb_auto_run
 
-    def calculate_pnl_percentage(position, pair):        
-        numerator = Decimal(position.amount)*calculate_price(pair.reserve_token, pair.reserve_eth) - Decimal(BUY_AMOUNT) - Decimal(GAS_COST)
-        denominator = Decimal(BUY_AMOUNT)
+    def calculate_pnl_percentage(position: Position, pair):        
+        numerator = Decimal(position.amount)*calculate_price(pair.reserve_token, pair.reserve_eth) - Decimal(position.amount_in) - Decimal(GAS_COST)
+        denominator = Decimal(position.amount_in)
         return (numerator / denominator) * Decimal(100)
     
     def send_exec_order(block_data, pair):
@@ -175,6 +175,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                                     is_buy=False,
                                     signer=position.signer,
                                     bot=position.bot,
+                                    position=position,
                                 ))
         
         if glb_daily_pnl[1] < HARD_STOP_PNL_THRESHOLD:
@@ -357,6 +358,7 @@ async def main():
                                 start_time=int(time()),
                                 signer=report.signer,
                                 bot=report.bot,
+                                amount_in=report.amount_in,
                             ))
                             logging.info(f"MAIN append {report.pair.address} to inventory")
                     else:
@@ -364,15 +366,18 @@ async def main():
                             glb_fullfilled -= 1
                             glb_liquidated = False
 
-                            pnl = (Decimal(report.amount_out)-Decimal(BUY_AMOUNT)-Decimal(GAS_COST))/Decimal(BUY_AMOUNT)*Decimal(100)
+                            if report.position is not None and report.position.amount_in is not None:
+                                pnl = (Decimal(report.amount_out)-Decimal(report.position.amount_in)-Decimal(GAS_COST))/Decimal(report.position.amount_in)*Decimal(100)
+                            else:
+                                pnl = (Decimal(report.amount_out)-Decimal(BUY_AMOUNT)-Decimal(GAS_COST))/Decimal(BUY_AMOUNT)*Decimal(100)
+                            
                             glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] + pnl)
 
                             # if PnL exceed threshold then increase the buy-amount and reset the PnL
-                            if pnl>PNL_CHANGE_THRESHOLD:
-                                with glb_lock:
-                                    BUY_AMOUNT+=AMOUNT_CHANGE_STEP
-                                    pnl=0
-                                    logging.warning(f"MAIN increase buy-amount to {BUY_AMOUNT} caused by PnL exceed threshold {PNL_CHANGE_THRESHOLD}, and reset PNL")
+                            if glb_daily_pnl[1]>PNL_CHANGE_THRESHOLD:
+                                BUY_AMOUNT+=AMOUNT_CHANGE_STEP
+                                glb_daily_pnl = (glb_daily_pnl[0], 0)
+                                logging.warning(f"MAIN increase buy-amount to {BUY_AMOUNT} caused by PnL exceed threshold {PNL_CHANGE_THRESHOLD}, and reset PNL")
 
                             logging.info(f"MAIN update PnL {glb_daily_pnl}")
                 else:
