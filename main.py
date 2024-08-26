@@ -63,6 +63,9 @@ NUMBER_TX_MM_THRESHOLD=int(os.environ.get('NUMBER_TX_MM_THRESHOLD'))
 # buy/sell tx config
 INVENTORY_CAPACITY=int(os.environ.get('INVENTORY_CAPACITY'))
 BUY_AMOUNT=float(os.environ.get('BUY_AMOUNT'))
+AMOUNT_CHANGE_STEP=float(os.environ.get('AMOUNT_CHANGE_STEP'))
+PNL_CHANGE_THRESHOLD=float(os.environ.get('PNL_CHANGE_THRESHOLD'))
+
 DEADLINE_DELAY_SECONDS = 30
 GAS_LIMIT = 250*10**3
 MAX_FEE_PER_GAS = 10**9
@@ -327,6 +330,9 @@ async def main():
         global glb_fullfilled
         global glb_liquidated
         global glb_daily_pnl
+        global BUY_AMOUNT
+        global PNL_CHANGE_THRESHOLD
+        global AMOUNT_CHANGE_STEP
 
         while True:
             report = await execution_report.coro_get()
@@ -361,6 +367,13 @@ async def main():
                             pnl = (Decimal(report.amount_out)-Decimal(BUY_AMOUNT)-Decimal(GAS_COST))/Decimal(BUY_AMOUNT)*Decimal(100)
                             glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] + pnl)
 
+                            # if PnL exceed threshold then increase the buy-amount and reset the PnL
+                            if pnl>PNL_CHANGE_THRESHOLD:
+                                with glb_lock:
+                                    BUY_AMOUNT+=AMOUNT_CHANGE_STEP
+                                    pnl=0
+                                    logging.warning(f"MAIN increase buy-amount to {BUY_AMOUNT} caused by PnL exceed threshold {PNL_CHANGE_THRESHOLD}, and reset PNL")
+
                             logging.info(f"MAIN update PnL {glb_daily_pnl}")
                 else:
                     logging.info(f"MAIN execution failed, reset lock...")
@@ -372,6 +385,11 @@ async def main():
                             glb_fullfilled -= 1
                             glb_liquidated = False
                             glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] - 100)
+
+                            # decrease the buy-amount to reduce risk exposure
+                            if BUY_AMOUNT>AMOUNT_CHANGE_STEP:
+                                BUY_AMOUNT-=AMOUNT_CHANGE_STEP
+                                logging.warning(f"MAIN decrease buy-amount to {BUY_AMOUNT} caused by liquidation failed")
 
                         report_broker.put(ReportData(
                             type=ReportDataType.BLACKLIST_ADDED,
