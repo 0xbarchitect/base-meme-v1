@@ -393,7 +393,7 @@ async def main():
                             glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] - 100)
 
                             # decrease the buy-amount to reduce risk exposure
-                            if glb_daily_pnl[1]<-100 and BUY_AMOUNT>AMOUNT_CHANGE_STEP and BUY_AMOUNT-AMOUNT_CHANGE_STEP>=MIN_BUY_AMOUNT:
+                            if glb_daily_pnl[1]<-100 and BUY_AMOUNT-AMOUNT_CHANGE_STEP>=MIN_BUY_AMOUNT:
                                 BUY_AMOUNT-=AMOUNT_CHANGE_STEP
                                 glb_daily_pnl = (glb_daily_pnl[0], 0)
                                 logging.warning(f"MAIN decrease buy-amount to {BUY_AMOUNT} caused by liquidation failed, reset PnL")
