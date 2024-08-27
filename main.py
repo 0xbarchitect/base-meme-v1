@@ -65,6 +65,7 @@ INVENTORY_CAPACITY=int(os.environ.get('INVENTORY_CAPACITY'))
 BUY_AMOUNT=float(os.environ.get('BUY_AMOUNT'))
 AMOUNT_CHANGE_STEP=float(os.environ.get('AMOUNT_CHANGE_STEP'))
 PNL_CHANGE_THRESHOLD=float(os.environ.get('PNL_CHANGE_THRESHOLD'))
+MIN_BUY_AMOUNT=float(os.environ.get('MIN_BUY_AMOUNT'))
 
 DEADLINE_DELAY_SECONDS = 30
 GAS_LIMIT = 250*10**3
@@ -377,7 +378,7 @@ async def main():
                             if glb_daily_pnl[1]>PNL_CHANGE_THRESHOLD:
                                 BUY_AMOUNT+=AMOUNT_CHANGE_STEP
                                 glb_daily_pnl = (glb_daily_pnl[0], 0)
-                                logging.warning(f"MAIN increase buy-amount to {BUY_AMOUNT} caused by PnL exceed threshold {PNL_CHANGE_THRESHOLD}, and reset PNL")
+                                logging.warning(f"MAIN increase buy-amount to {BUY_AMOUNT} caused by PnL exceed threshold {PNL_CHANGE_THRESHOLD}, reset PnL")
 
                             logging.info(f"MAIN update PnL {glb_daily_pnl}")
                 else:
@@ -392,9 +393,10 @@ async def main():
                             glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] - 100)
 
                             # decrease the buy-amount to reduce risk exposure
-                            if BUY_AMOUNT>AMOUNT_CHANGE_STEP:
+                            if glb_daily_pnl[1]<-100 and BUY_AMOUNT>AMOUNT_CHANGE_STEP and BUY_AMOUNT-AMOUNT_CHANGE_STEP>=MIN_BUY_AMOUNT:
                                 BUY_AMOUNT-=AMOUNT_CHANGE_STEP
-                                logging.warning(f"MAIN decrease buy-amount to {BUY_AMOUNT} caused by liquidation failed")
+                                glb_daily_pnl = (glb_daily_pnl[0], 0)
+                                logging.warning(f"MAIN decrease buy-amount to {BUY_AMOUNT} caused by liquidation failed, reset PnL")
 
                         report_broker.put(ReportData(
                             type=ReportDataType.BLACKLIST_ADDED,
