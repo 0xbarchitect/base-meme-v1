@@ -108,3 +108,6 @@ def calculate_allowance_storage_index(owner, spender, index):
 
 def rpad_int(amount):
     return "0x" + eth_utils.remove_0x_prefix(hex(amount)).rjust(64,'0')
+
+def calculate_expect_pnl(buy_amount, min_buy_amount, min_expected_pnl, rr_ratio):
+    return Decimal(min_buy_amount*min_expected_pnl/100 + (buy_amount-min_buy_amount)*rr_ratio)/Decimal(buy_amount)*Decimal(100)

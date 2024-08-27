@@ -21,10 +21,12 @@ from watcher import BlockWatcher
 from inspector import Simulator, PairInspector
 from executor import BuySellExecutor
 from reporter import Reporter
-from helpers import load_abi, timer_decorator, calculate_price, calculate_next_block_base_fee, constants
+from helpers import load_abi, timer_decorator, calculate_price, calculate_next_block_base_fee, \
+                        constants, calculate_expect_pnl
 
 from data import ExecutionOrder, SimulationResult, ExecutionAck, Position, TxStatus, \
-                    ReportData, ReportDataType, BlockData, Pair, MaliciousPair, InspectionResult
+                    ReportData, ReportDataType, BlockData, Pair, MaliciousPair, InspectionResult, \
+                    ControlOrder, ControlOrderType
 
 # global variables
 glb_fullfilled = 0
@@ -64,8 +66,9 @@ NUMBER_TX_MM_THRESHOLD=int(os.environ.get('NUMBER_TX_MM_THRESHOLD'))
 INVENTORY_CAPACITY=int(os.environ.get('INVENTORY_CAPACITY'))
 BUY_AMOUNT=float(os.environ.get('BUY_AMOUNT'))
 AMOUNT_CHANGE_STEP=float(os.environ.get('AMOUNT_CHANGE_STEP'))
-PNL_CHANGE_THRESHOLD=float(os.environ.get('PNL_CHANGE_THRESHOLD'))
 MIN_BUY_AMOUNT=float(os.environ.get('MIN_BUY_AMOUNT'))
+MIN_EXPECTED_PNL=float(os.environ.get('MIN_EXPECTED_PNL'))
+RISK_REWARD_RATIO=float(os.environ.get('RISK_REWARD_RATIO'))
 
 DEADLINE_DELAY_SECONDS = 30
 GAS_LIMIT = 250*10**3
@@ -100,7 +103,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
     global glb_daily_pnl
     global glb_auto_run
 
-    def calculate_pnl_percentage(position: Position, pair):        
+    def calculate_pnl_percentage(position: Position, pair):
         numerator = Decimal(position.amount)*calculate_price(pair.reserve_token, pair.reserve_eth) - Decimal(position.amount_in) - Decimal(GAS_COST)
         denominator = Decimal(position.amount_in)
         return (numerator / denominator) * Decimal(100)
@@ -137,7 +140,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
             ))
 
         # hardstop based on pnl
-        logging.info(f"[{glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}] PnL {glb_daily_pnl[1]}")
+        logging.info(f"[{glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}] Realized PnL {round(glb_daily_pnl[1],6)} Expected PnL {round(calculate_expect_pnl(BUY_AMOUNT, MIN_BUY_AMOUNT, MIN_EXPECTED_PNL, RISK_REWARD_RATIO),6)}")
 
         if RUN_MODE==constants.WATCHING_ONLY_MODE:
             logging.info(f"I'm happy watching =))...")
@@ -333,7 +336,6 @@ async def main():
         global glb_liquidated
         global glb_daily_pnl
         global BUY_AMOUNT
-        global PNL_CHANGE_THRESHOLD
         global AMOUNT_CHANGE_STEP
 
         while True:
@@ -375,10 +377,10 @@ async def main():
                             glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] + pnl)
 
                             # if PnL exceed threshold then increase the buy-amount and reset the PnL
-                            if glb_daily_pnl[1]>PNL_CHANGE_THRESHOLD:
+                            if glb_daily_pnl[1]>calculate_expect_pnl(BUY_AMOUNT,MIN_BUY_AMOUNT,MIN_EXPECTED_PNL,RISK_REWARD_RATIO):
                                 BUY_AMOUNT+=AMOUNT_CHANGE_STEP
                                 glb_daily_pnl = (glb_daily_pnl[0], 0)
-                                logging.warning(f"MAIN increase buy-amount to {BUY_AMOUNT} caused by PnL exceed threshold {PNL_CHANGE_THRESHOLD}, reset PnL")
+                                logging.warning(f"MAIN increase buy-amount to {BUY_AMOUNT} caused by PnL exceed threshold {calculate_expect_pnl(BUY_AMOUNT,MIN_BUY_AMOUNT,MIN_EXPECTED_PNL,RISK_REWARD_RATIO)}, reset PnL")
 
                             logging.info(f"MAIN update PnL {glb_daily_pnl}")
                 else:
@@ -407,9 +409,20 @@ async def main():
 
     async def handle_control_order():
         global glb_lock
+        global glb_inventory
+
+        async def handle_pending_positions(positions):
+            with glb_lock:
+                for pos in positions: 
+                    glb_inventory.append(pos)
+                    logging.info(f"MAIN append {pos} to inventory upon bootstrap process")
 
         while True:
-            command = await control_receiver.coro_get()
+            order = await control_receiver.coro_get()
+
+            if order is not None and isinstance(order, ControlOrder):
+                if order.type==ControlOrderType.PENDING_POSITIONS:
+                    await handle_pending_positions(order.data)
 
     # control_receiver.put(ReportData(
     #     type=ReportDataType.BLACKLIST_BOOTSTRAP,

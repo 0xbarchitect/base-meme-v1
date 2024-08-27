@@ -69,7 +69,7 @@ class PositionAdmin(FullPermissionModelAdmin):
     inlines = [PositionTransactionInline]
 
     list_filter = ['is_deleted']
-    list_display = ('id', 'pair', 'bot', 'purchased_at', 'is_liquidated', 'liquidated_at', 'investment', 'returns_h', 'pnl_h', 'buttons')
+    list_display = ('id', 'pair', 'bot', 'purchased_at', 'is_liquidated', 'liquidated_at', 'investment_h', 'returns_h', 'pnl_h', 'buttons')
     fields = ('pair', 'signer', 'bot', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidated_at', 'liquidation_attempts', 'investment', 'returns', 'pnl',)
     readonly_fields = ('pair', 'signer', 'bot', 'amount', 'buy_price', 'purchased_at', 'is_liquidated', 'sell_price', 'liquidated_at', 'liquidation_attempts', 'investment', 'returns', 'pnl',)
     
@@ -78,6 +78,12 @@ class PositionAdmin(FullPermissionModelAdmin):
         return format_html(f"""
         <button><a class="btn" href="/admin/console/position/{obj.id}/change/">Edit</a></button>&emsp;
         """)
+    
+    @admin.display()
+    def investment_h(self, obj):
+        if obj.investment is not None:
+            return format_html(f"{round(obj.investment, 9)}")
+        return format_html(f"-")
     
     @admin.display()
     def returns_h(self, obj):
