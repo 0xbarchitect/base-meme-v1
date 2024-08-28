@@ -195,10 +195,11 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
         if glb_daily_pnl[0].strftime('%Y-%m-%d %H') != datetime.now().strftime('%Y-%m-%d %H'):
             with glb_lock:
                 glb_daily_pnl = (datetime.now(), 0)
-                logging.info(f"MAIN reset daily pnl at time {glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}")
-                if int(glb_daily_pnl[0].strftime('%H'))==0:
+                logging.info(f"MAIN reset hourly pnl at time {glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}")
+
+                if int(glb_daily_pnl[0].strftime('%H'))==14:
                     BUY_AMOUNT=float(os.environ.get('BUY_AMOUNT'))
-                    logging.info(f"MAIN reset buy-amount to initial value {BUY_AMOUNT}")
+                    logging.info(f"MAIN reset buy-amount to initial value {BUY_AMOUNT} at 0 a.m VNT")
                 
 
         if len(glb_watchlist)>0:
