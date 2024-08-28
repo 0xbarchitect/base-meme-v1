@@ -195,6 +195,10 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
             with glb_lock:
                 glb_daily_pnl = (datetime.now(), 0)
                 logging.info(f"MAIN reset daily pnl at time {glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}")
+                if int(glb_daily_pnl[0].strftime('%H'))==0:
+                    BUY_AMOUNT=float(os.environ.get('BUY_AMOUNT'))
+                    logging.info(f"MAIN reset buy-amount to initial value {BUY_AMOUNT}")
+                
 
         if len(glb_watchlist)>0:
             logging.info(f"MAIN watching list {len(glb_watchlist)}")
@@ -392,13 +396,16 @@ async def main():
                         with glb_lock:
                             glb_fullfilled -= 1
                             glb_liquidated = False
-                            glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] - 100)
+
+                            pnl = (-Decimal(BUY_AMOUNT)-Decimal(GAS_COST))/Decimal(BUY_AMOUNT)*Decimal(100)
+                            glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] + pnl)
+                            logging.info(f"MAIN update PnL to value {round(glb_daily_pnl[1],6)} upon liquidation failed")
 
                             # decrease the buy-amount to reduce risk exposure
                             if glb_daily_pnl[1]<-100 and BUY_AMOUNT-AMOUNT_CHANGE_STEP>=MIN_BUY_AMOUNT:
                                 BUY_AMOUNT-=AMOUNT_CHANGE_STEP
                                 glb_daily_pnl = (glb_daily_pnl[0], 0)
-                                logging.warning(f"MAIN decrease buy-amount to {BUY_AMOUNT} caused by liquidation failed, reset PnL")
+                                logging.warning(f"MAIN decrease buy-amount to {BUY_AMOUNT} caused by PnL fall below -100, reset PnL")
 
                         report_broker.put(ReportData(
                             type=ReportDataType.BLACKLIST_ADDED,
