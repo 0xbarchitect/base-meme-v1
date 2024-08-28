@@ -102,6 +102,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
     global glb_watchlist
     global glb_daily_pnl
     global glb_auto_run
+    global BUY_AMOUNT
 
     def calculate_pnl_percentage(position: Position, pair):
         numerator = Decimal(position.amount)*calculate_price(pair.reserve_token, pair.reserve_eth) - Decimal(position.amount_in) - Decimal(GAS_COST)
