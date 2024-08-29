@@ -22,7 +22,7 @@ from inspector import Simulator, PairInspector
 from executor import BuySellExecutor
 from reporter import Reporter
 from helpers import load_abi, timer_decorator, calculate_price, calculate_next_block_base_fee, \
-                        constants, calculate_expect_pnl
+                        constants, calculate_expect_pnl, get_hour_in_vntz
 
 from data import ExecutionOrder, SimulationResult, ExecutionAck, Position, TxStatus, \
                     ReportData, ReportDataType, BlockData, Pair, MaliciousPair, InspectionResult, \
@@ -67,6 +67,7 @@ INVENTORY_CAPACITY=int(os.environ.get('INVENTORY_CAPACITY'))
 BUY_AMOUNT=float(os.environ.get('BUY_AMOUNT'))
 AMOUNT_CHANGE_STEP=float(os.environ.get('AMOUNT_CHANGE_STEP'))
 MIN_BUY_AMOUNT=float(os.environ.get('MIN_BUY_AMOUNT'))
+MAX_BUY_AMOUNT=float(os.environ.get('MAX_BUY_AMOUNT'))
 MIN_EXPECTED_PNL=float(os.environ.get('MIN_EXPECTED_PNL'))
 RISK_REWARD_RATIO=float(os.environ.get('RISK_REWARD_RATIO'))
 
@@ -197,7 +198,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                 glb_daily_pnl = (datetime.now(), 0)
                 logging.info(f"MAIN reset hourly pnl at time {glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}")
 
-                if int(glb_daily_pnl[0].strftime('%H'))==17:
+                if get_hour_in_vntz(datetime.now())==0:
                     BUY_AMOUNT=float(os.environ.get('BUY_AMOUNT'))
                     logging.info(f"MAIN reset buy-amount to initial value {BUY_AMOUNT} at 0 a.m VNT")
                 
@@ -342,7 +343,6 @@ async def main():
         global glb_liquidated
         global glb_daily_pnl
         global BUY_AMOUNT
-        global AMOUNT_CHANGE_STEP
 
         while True:
             report = await execution_report.coro_get()
@@ -383,7 +383,7 @@ async def main():
                             glb_daily_pnl = (glb_daily_pnl[0], glb_daily_pnl[1] + pnl)
 
                             # if PnL exceed threshold then increase the buy-amount and reset the PnL
-                            if glb_daily_pnl[1]>calculate_expect_pnl(BUY_AMOUNT,MIN_BUY_AMOUNT,MIN_EXPECTED_PNL,RISK_REWARD_RATIO):
+                            if glb_daily_pnl[1]>calculate_expect_pnl(BUY_AMOUNT,MIN_BUY_AMOUNT,MIN_EXPECTED_PNL,RISK_REWARD_RATIO) and BUY_AMOUNT+AMOUNT_CHANGE_STEP<=MAX_BUY_AMOUNT:
                                 BUY_AMOUNT+=AMOUNT_CHANGE_STEP
                                 glb_daily_pnl = (glb_daily_pnl[0], 0)
                                 logging.warning(f"MAIN increase buy-amount to {BUY_AMOUNT} caused by PnL exceed threshold {calculate_expect_pnl(BUY_AMOUNT,MIN_BUY_AMOUNT,MIN_EXPECTED_PNL,RISK_REWARD_RATIO)}, reset PnL")

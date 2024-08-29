@@ -111,3 +111,8 @@ def rpad_int(amount):
 
 def calculate_expect_pnl(buy_amount, min_buy_amount, min_expected_pnl, rr_ratio):
     return Decimal(min_buy_amount*min_expected_pnl/100 + (buy_amount-min_buy_amount)*rr_ratio)/Decimal(buy_amount)*Decimal(100)
+
+def get_hour_in_vntz(dt: datetime):
+    from zoneinfo import ZoneInfo
+    dt=dt.astimezone(ZoneInfo('Asia/Ho_Chi_Minh'))
+    return int(dt.strftime('%H'))
