@@ -85,7 +85,7 @@ class BuySellExecutor(BaseExecutor):
             bot = self.w3.eth.contract(address=Web3.to_checksum_address(bot),abi=self.bot_abi)
 
         try:
-            logging.info(f"EXECUTOR Signer {signer} AmountIn {amount_in} AmountOutMin {amount_out_min} Deadline {deadline} IsBuy {is_buy}")
+            logging.warning(f"EXECUTOR Signer {signer} AmountIn {amount_in} AmountOutMin {amount_out_min} Deadline {deadline} IsBuy {is_buy}")
 
             # get nonce onchain
             nonce = self.w3.eth.get_transaction_count(signer)
@@ -132,7 +132,7 @@ class BuySellExecutor(BaseExecutor):
                 position=position,
             )
 
-            logging.info(f"EXECUTOR Acknowledgement {ack}")
+            logging.warning(f"EXECUTOR Acknowledgement {ack}")
             self.report_sender.put(ack)
 
         except Exception as e:
@@ -151,7 +151,7 @@ class BuySellExecutor(BaseExecutor):
                 position=position,
             )
 
-            logging.info(f"EXECUTOR failed execution ack {ack}")
+            logging.warning(f"EXECUTOR failed execution ack {ack}")
             self.report_sender.put(ack)
 
         # update bot status
@@ -179,13 +179,13 @@ class BuySellExecutor(BaseExecutor):
                 logging.debug(f"EXECUTOR bot created {result}")
                 for idx,acct in enumerate(self.accounts):
                     if (acct.bot is None or acct.bot.number_used >= BOT_MAX_NUMBER_USED or acct.bot.is_failed) and acct.w3_account.address.lower()==result.owner.lower():
-                        logging.info(f"EXECUTOR created bot {result} for account #{idx} {acct.w3_account.address}")
+                        logging.warning(f"EXECUTOR created bot {result} for account #{idx} {acct.w3_account.address}")
                         acct.bot = result
 
     async def handle_execution_order(self):
         global glb_lock
 
-        logging.info(f"EXECUTOR listen for order...")
+        logging.warning(f"EXECUTOR listen for order...")
         executor = ThreadPoolExecutor(max_workers=len(self.accounts))
         counter = 0
         while True:
@@ -195,7 +195,7 @@ class BuySellExecutor(BaseExecutor):
                 with glb_lock:
                     counter += 1
 
-                logging.info(f"EXECUTOR receive order #{counter} {execution_data}")
+                logging.warning(f"EXECUTOR receive order #{counter} {execution_data}")
                 deadline = execution_data.block_timestamp + self.deadline_delay if execution_data.block_timestamp > 0 else self.get_block_timestamp() + self.deadline_delay
                 
                 if execution_data.signer is None:

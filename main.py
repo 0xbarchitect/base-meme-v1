@@ -15,7 +15,8 @@ from typing import List
 
 from dotenv import load_dotenv
 load_dotenv()
-logging.basicConfig(level=logging.INFO)
+#logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=int(os.environ.get('LOG_LEVEL')))
 
 from watcher import BlockWatcher
 from inspector import Simulator, PairInspector
@@ -142,7 +143,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
             ))
 
         # hardstop based on pnl
-        logging.info(f"[{glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}] Realized PnL {round(glb_daily_pnl[1],6)} Expected PnL {round(calculate_expect_pnl(BUY_AMOUNT, MIN_BUY_AMOUNT, MIN_EXPECTED_PNL, RISK_REWARD_RATIO),6)}")
+        logging.warning(f"[{glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}] Realized PnL {round(glb_daily_pnl[1],6)} Expected PnL {round(calculate_expect_pnl(BUY_AMOUNT, MIN_BUY_AMOUNT, MIN_EXPECTED_PNL, RISK_REWARD_RATIO),6)}")
 
         if RUN_MODE==constants.WATCHING_ONLY_MODE:
             logging.info(f"I'm happy watching =))...")
@@ -227,7 +228,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                                     # in order to re-verify multiple times to gain reliability
                                     #pair.last_inspected_block = block_data.block_number
                                     
-                                logging.info(f"MAIN update upon inspect attempts {pair}")
+                                logging.warning(f"MAIN update upon inspect attempts {pair}")
 
                             if pair.inspect_attempts >= MAX_INSPECT_ATTEMPTS:
                                 with glb_lock:
@@ -237,7 +238,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                                 if pair.number_tx_mm >= NUMBER_TX_MM_THRESHOLD:
                                     send_exec_order(block_data, pair)
                                 else:
-                                    logging.info(f"MAIN pair {pair.address} not qualified for order due to numberTxMM {pair.number_tx_mm} is not sufficient")
+                                    logging.warning(f"MAIN pair {pair.address} not qualified for order due to numberTxMM {pair.number_tx_mm} is not sufficient")
 
                 # remove simulation failed pair
                 failed_pairs = [pair.address for pair in inspection_batch if pair.address not in [result.simulation_result.pair.address for result in results if result.simulation_result is not None]]
@@ -266,7 +267,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
 
                                 glb_watchlist.append(pair)
 
-                            logging.info(f"MAIN add pair {pair.address} to watchlist")
+                            logging.warning(f"MAIN add pair {pair.address} to watchlist")
                         else:
                             # send order immediately
                             send_exec_order(block_data, result.pair)
@@ -369,7 +370,7 @@ async def main():
                                 bot=report.bot,
                                 amount_in=report.amount_in,
                             ))
-                            logging.info(f"MAIN append {report.pair.address} to inventory")
+                            logging.warning(f"MAIN append {report.pair.address} to inventory")
                     else:
                         with glb_lock:
                             glb_fullfilled -= 1
@@ -388,9 +389,9 @@ async def main():
                                 glb_daily_pnl = (glb_daily_pnl[0], 0)
                                 logging.warning(f"MAIN increase buy-amount to {BUY_AMOUNT} caused by PnL exceed threshold {calculate_expect_pnl(BUY_AMOUNT,MIN_BUY_AMOUNT,MIN_EXPECTED_PNL,RISK_REWARD_RATIO)}, reset PnL")
 
-                            logging.info(f"MAIN update PnL {glb_daily_pnl}")
+                            logging.warning(f"MAIN update PnL {glb_daily_pnl} upon liquidation successful")
                 else:
-                    logging.info(f"MAIN execution failed, reset lock...")
+                    logging.warning(f"MAIN execution failed, reset lock...")
                     if report.is_buy:
                         with glb_lock:
                             glb_fullfilled -= 1
@@ -414,7 +415,6 @@ async def main():
                             data=[report.pair.creator]
                         ))
                         logging.warning(f"MAIN add {report.pair.creator} to blacklist")
-                        logging.info(f"MAIN update PnL {glb_daily_pnl}")
 
     async def handle_control_order():
         global glb_lock
@@ -424,7 +424,7 @@ async def main():
             with glb_lock:
                 for pos in positions: 
                     glb_inventory.append(pos)
-                    logging.info(f"MAIN append {pos} to inventory upon bootstrap process")
+                    logging.warning(f"MAIN append {pos} to inventory upon bootstrap process")
 
         while True:
             order = await control_receiver.coro_get()
