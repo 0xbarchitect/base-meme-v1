@@ -143,7 +143,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
             ))
 
         # hardstop based on pnl
-        logging.warning(f"[{glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}] Realized PnL {round(glb_daily_pnl[1],6)} Expected PnL {round(calculate_expect_pnl(BUY_AMOUNT, MIN_BUY_AMOUNT, MIN_EXPECTED_PNL, RISK_REWARD_RATIO),6)}")
+        logging.info(f"[{glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}] Realized PnL {round(glb_daily_pnl[1],6)} Expected PnL {round(calculate_expect_pnl(BUY_AMOUNT, MIN_BUY_AMOUNT, MIN_EXPECTED_PNL, RISK_REWARD_RATIO),6)}")
 
         if RUN_MODE==constants.WATCHING_ONLY_MODE:
             logging.info(f"I'm happy watching =))...")
