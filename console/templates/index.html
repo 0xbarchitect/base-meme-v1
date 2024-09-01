@@ -17,11 +17,11 @@
 <div id="content-main" class="col-12">
     <div class="row">
         <div class="col-12">
-            {% if principal %}
+        {% if principal and cash %}
             <p>Principal: {{ principal }}</p>
             <p>Cash: {{ cash }}</p>
-            <p>PnL: {{ pnl }}</p>
-            {% endif %}
+            <p>PnL: <span class="{% if pnl > 0 %} text-success {% else %} text-danger {% endif %}">{{ pnl }}</span></p>
+        {% endif %}
         </div>
     </div>
     <div class="row">
@@ -46,7 +46,7 @@
                                     <td>{{ executor.address}}</td>
                                     <td>{{ executor.initial_balance_h }}</td>
                                     <td>{{ executor.current_balance }}</td>
-                                    <td>{{ executor.pnl }}</td>
+                                    <td><span class="{% if executor.pnl > 0 %} text-success {% else %} text-danger {% endif %}">{{ executor.pnl }}</span></td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
