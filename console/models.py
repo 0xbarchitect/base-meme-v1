@@ -187,7 +187,7 @@ class Executor(models.Model):
 
     @property
     def pnl(self):
-        return round((Decimal(self.current_balance)-Decimal(self.initial_balance))/Decimal(self.initial_balance)*Decimal(100), 6)
+        return round((Decimal(self.current_balance)-Decimal(self.initial_balance))/Decimal(self.initial_balance)*Decimal(100), 3)
 
     def __str__(self) -> str:
         return f"{self.address}"

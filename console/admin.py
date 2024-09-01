@@ -26,7 +26,7 @@ class ConsoleAdminSite(admin.AdminSite):
 
         extra_context['principal']=round(principal,6)
         extra_context['cash']=round(cash,6)
-        extra_context['pnl']=round(pnl,6)
+        extra_context['pnl']=round(pnl,3)
 
         # Add your context here
         return super(ConsoleAdminSite, self).index(request, extra_context)
