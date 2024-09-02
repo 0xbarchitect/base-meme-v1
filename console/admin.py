@@ -33,7 +33,7 @@ class ConsoleAdminSite(admin.AdminSite):
     
     site_header = "Bot Admin"
     site_title = "Bot Admin"
-    index_title = "Welcome to Bot console"
+    index_title = "Console"
     index_template = 'index.html'
 
 class NoDeletePermissionModelAdmin(admin.ModelAdmin):
