@@ -22,7 +22,7 @@ class ConsoleAdminSite(admin.AdminSite):
         # calculate performance
         principal = sum([executor.initial_balance for executor in executors])
         cash = sum([executor.current_balance for executor in executors])
-        pnl = (Decimal(cash)-Decimal(principal))/Decimal(principal)*Decimal(100)
+        pnl = (Decimal(cash)-Decimal(principal))/Decimal(principal)*Decimal(100) if principal>0 else 0
 
         extra_context['principal']=round(principal,6)
         extra_context['cash']=round(cash,6)
