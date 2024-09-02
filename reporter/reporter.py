@@ -111,26 +111,26 @@ class Reporter(metaclass=Singleton):
                     logging.debug(f"pair exists id #{pair_ins.id}")
 
         async def update_pnl(position: console.models.Position):
-            async def determine_number_position(day_obj):
+            async def determine_number_position(day_obj: datetime):
                 day_str = day_obj.strftime('%Y-%m-%d')
                 hour_str = day_obj.strftime('%H')
                 return await console.models.Position.objects.filter(purchased_at__date=day_str, purchased_at__hour=hour_str).acount()
             
-            async def determine_number_failed(day_obj):
+            async def determine_number_failed(day_obj: datetime):
                 day_str = day_obj.strftime('%Y-%m-%d')
                 hour_str = day_obj.strftime('%H')
                 return await console.models.Position.objects.filter(purchased_at__date=day_str, purchased_at__hour=hour_str, pnl__lte=-100).acount()
             
-            async def calculate_hourly_pnl(day_obj):
+            async def calculate_hourly_pnl(day_obj: datetime):
                 day_str = day_obj.strftime('%Y-%m-%d')
                 hour_str = day_obj.strftime('%H')
                 sum = await console.models.Position.objects.filter(purchased_at__date=day_str, purchased_at__hour=hour_str).aaggregate(Sum('pnl'))
                 return Decimal(sum['pnl__sum'])
 
-            async def calculate_avg_daily_pnl(day_obj):
+            async def calculate_avg_daily_pnl(day_obj: datetime):
                 day_str = day_obj.strftime('%Y-%m-%d')
                 sum = await console.models.Position.objects.filter(purchased_at__date=day_str).aaggregate(Sum('pnl'))
-                hour_elapsed = int(datetime.now().strftime('%H'))+1
+                hour_elapsed = int(day_obj.strftime('%H'))+1
                 return Decimal(sum['pnl__sum']/hour_elapsed)
 
             timestamp = position.created_at.strftime('%Y-%m-%d %H:00:00')
