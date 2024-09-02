@@ -156,7 +156,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
                     for pair in block_data.inventory:
                         if position.pair.address == pair.address:
                             position.pnl = calculate_pnl_percentage(position, pair)
-                            logging.info(f"MAIN {position} update PnL {position.pnl}")
+                            logging.warning(f"MAIN {position} update PnL {position.pnl}")
                             
                             if position.pnl > Decimal(TAKE_PROFIT_PERCENTAGE) or position.pnl < Decimal(STOP_LOSS_PERCENTAGE):
                                 logging.warning(f"MAIN {position} take profit or stop loss caused by pnl {position.pnl}")
