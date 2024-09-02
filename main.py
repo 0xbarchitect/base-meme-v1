@@ -197,11 +197,11 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
         if glb_daily_pnl[0].strftime('%Y-%m-%d %H') != datetime.now().strftime('%Y-%m-%d %H'):
             with glb_lock:
                 glb_daily_pnl = (datetime.now(), 0)
-                logging.info(f"MAIN reset hourly pnl at time {glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}")
+                logging.warning(f"MAIN reset hourly pnl at time {glb_daily_pnl[0].strftime('%Y-%m-%d %H:00:00')}")
 
                 if get_hour_in_vntz(datetime.now())==0:
                     BUY_AMOUNT=float(os.environ.get('BUY_AMOUNT'))
-                    logging.info(f"MAIN reset buy-amount to initial value {BUY_AMOUNT} at 0 a.m VNT")
+                    logging.warning(f"MAIN reset buy-amount to initial value {BUY_AMOUNT} at 0 a.m VNT")
                 
 
         if len(glb_watchlist)>0:
@@ -210,7 +210,7 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
             inspection_batch=[]
             for pair in glb_watchlist:
                 if (block_data.block_timestamp - pair.created_at) > pair.inspect_attempts*INSPECT_INTERVAL_SECONDS:
-                    logging.info(f"MAIN pair {pair.address} inspect time #{pair.inspect_attempts + 1} elapsed")
+                    logging.warning(f"MAIN pair {pair.address} inspect time #{pair.inspect_attempts + 1} elapsed")
                     inspection_batch.append(pair)
 
             if len(inspection_batch)>0:
@@ -267,12 +267,12 @@ async def strategy(watching_broker, execution_broker, report_broker, watching_no
 
                                 glb_watchlist.append(pair)
 
-                            logging.warning(f"MAIN add pair {pair.address} to watchlist")
+                            logging.warning(f"MAIN add pair {pair.address} to watchlist length {len(glb_watchlist)}")
                         else:
                             # send order immediately
                             send_exec_order(block_data, result.pair)
             else:
-                logging.info(f"MAIN watchlist is already full capacity")
+                logging.warning(f"MAIN watchlist is already full capacity {WATCHLIST_CAPACITY}")
 
 @timer_decorator
 def inspect(pairs, block_number, is_initial=False) -> List[InspectionResult]:
