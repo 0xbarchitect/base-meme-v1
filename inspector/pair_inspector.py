@@ -36,7 +36,7 @@ PAGE_SIZE=100
 MM_TX_AMOUNT_THRESHOLD=0.001
 CREATOR_TX_HISTORY_PAGE_SIZE=500
 
-SIMULATION_AMOUNT=0.001
+SIMULATION_AMOUNT=0.0001
 SLIPPAGE_MIN_THRESHOLD = 30 # in basis points
 SLIPPAGE_MAX_THRESHOLD = 100 # in basis points
 
@@ -218,14 +218,14 @@ if __name__=="__main__":
     )
 
     pair = Pair(
-        address="0x56aa4f3e4423f5a76a57021984e4071a67da46fc",
-        token="0xf8b1f7b38972c0db678c7e0868172cb92ada24a3",
+        address="0x10e8b615c6cf91976c08f088dadc1b6fb83b355a",
+        token="0x5f79b972bb698e636e012c823224c2ff864784f9",
         token_index=0,
         reserve_eth=3,
         reserve_token=0,
         created_at=0,
         inspect_attempts=1,
-        creator="0x9b5cd354a9f370241bcd56a6c6c7bba4d8e263e1",
+        creator="0xcba5fab1c828d3188701501b4856f843e00534d0",
         contract_verified=False,
         number_tx_mm=0,
         last_inspected_block=0, # is the created_block as well
@@ -236,4 +236,4 @@ if __name__=="__main__":
     # print(f"number mm_tx {inspector.number_tx_mm(pair, 18441096, 18441130)}")
     # print(f"is malicious {inspector.is_malicious(pair)}")
 
-    inspector.inspect_batch([pair], 18779770, is_initial=True)
+    inspector.inspect_batch([pair], 19824295, is_initial=True)
