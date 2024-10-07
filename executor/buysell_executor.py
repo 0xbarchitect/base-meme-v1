@@ -165,11 +165,11 @@ class BuySellExecutor(BaseExecutor):
                 if ack.tx_status != constants.TX_SUCCESS_STATUS:
                     self.accounts[idx].bot.is_failed=True
 
-                # renew bot
-                if self.accounts[idx].bot.number_used>=BOT_MAX_NUMBER_USED or self.accounts[idx].bot.is_failed:
-                    logging.warning(f"EXECUTOR bot {self.accounts[idx].bot.address} of account {signer} reached max usage {BOT_MAX_NUMBER_USED} or failure, replace it with new created bot")
-                    self.accounts[idx].bot = None
-                    self.bot_factory.order_broker.put(BotCreationOrder(self.accounts[idx].w3_account.address))
+                # TODO: disable temporarily (renew bot)
+                # if self.accounts[idx].bot.number_used>=BOT_MAX_NUMBER_USED or self.accounts[idx].bot.is_failed:
+                #     logging.warning(f"EXECUTOR bot {self.accounts[idx].bot.address} of account {signer} reached max usage {BOT_MAX_NUMBER_USED} or failure, replace it with new created bot")
+                #     self.accounts[idx].bot = None
+                #     self.bot_factory.order_broker.put(BotCreationOrder(self.accounts[idx].w3_account.address))
 
     async def handle_bot_result(self):
         while True:
